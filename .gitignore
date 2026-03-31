@@ -31,7 +31,7 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+build/
 /coverage/
 .packages
 # Symbolication related
@@ -52,3 +52,19 @@ ios/Flutter/flutter_export_environment.sh
 # FVM Version Cache
 .fvm/
 /.fvmrc
+
+# Generated Files (Dart/Riverpod/Freezed)
+*.g.dart
+*.freezed.dart
+*.generated.dart
+*.mocks.dart
+
+# Native Generated Files
+linux/flutter/generated_plugin_registrant.cc
+**/generated_plugin_registrant.cc
+**/generated_plugin_registrant.h
+**/generated_plugins.cmake
+**/GeneratedPluginRegistrant.swift
+**/generated_plugin_registrant.dart
+# Environment Variables
+env.json
