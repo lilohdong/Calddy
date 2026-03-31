@@ -36,7 +36,8 @@ migrate_working_dir/
 .packages
 # Symbolication related
 app.*.symbols
-
+.gemini
+GEMINI.md
 # Obfuscation related
 app.*.map.json
 
@@ -47,3 +48,6 @@ app.*.map.json
 android/local.properties
 ios/Flutter/Generated.xcconfig
 ios/Flutter/flutter_export_environment.sh
+
+# FVM Version Cache
+.fvm/
