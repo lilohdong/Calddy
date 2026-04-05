@@ -40,8 +40,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         'is_onboarded': true,
       }).eq('id', user.id);
 
-      // 성공 시 authStateProvider가 스트림을 통해 자동으로 상태를 갱신하여 
-      // SplashPage가 CalendarPage로 화면을 전환하게 됨
+      // auth 세션 refresh → authStateChanges 스트림 재트리거
+      // profiles 업데이트는 onAuthStateChange를 자동 트리거하지 않으므로 수동 refresh
+      await supabase.auth.refreshSession();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -90,7 +91,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             ),
             const SizedBox(height: 16),
             TextButton(
-              onPressed: () => ref.read(authRepositoryProvider).signOut(),
+              onPressed: () => ref.read(signOutUseCaseProvider)(),
               child: const Text('로그아웃'),
             ),
           ],

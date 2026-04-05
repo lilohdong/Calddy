@@ -4,11 +4,33 @@ import '../providers/auth_providers.dart';
 import 'email_auth_page.dart';
 
 /// 로그인 화면
-class LoginPage extends ConsumerWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends ConsumerState<LoginPage> {
+  bool _isLoading = false;
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(signInWithGoogleUseCaseProvider)();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('로그인 실패: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
         child: Column(
@@ -24,18 +46,14 @@ class LoginPage extends ConsumerWidget {
             const Text('친구와 함께하는 캘린더 관리'),
             const SizedBox(height: 64),
             ElevatedButton.icon(
-              onPressed: () async {
-                try {
-                  await ref.read(authRepositoryProvider).signInWithGoogle();
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('로그인 실패: $e')),
-                    );
-                  }
-                }
-              },
-              icon: const Icon(Icons.login),
+              onPressed: _isLoading ? null : _signInWithGoogle,
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.login),
               label: const Text('Google 계정으로 시작하기'),
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(250, 50),
@@ -43,12 +61,14 @@ class LoginPage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const EmailAuthPage()),
-                );
-              },
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const EmailAuthPage()),
+                      );
+                    },
               child: const Text('이메일로 시작하기'),
             ),
           ],

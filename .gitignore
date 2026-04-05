@@ -18,7 +18,9 @@ migrate_working_dir/
 *.iws
 .idea/
 .vscode/
-
+CLAUDE.md
+.claude
+.claude/*
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
@@ -69,3 +71,7 @@ generated_main.dart
 
 # Environment Variables
 env.json
+supabase/.env
+
+# MCP local config (contains DB credentials)
+.mcp.json

@@ -8,6 +8,10 @@ final supabaseClientProvider = Provider<SupabaseClient>((ref) {
 });
 
 /// 구글 로그인 객체 프로바이더
+/// serverClientId: Supabase Google OAuth에 등록한 Web Client ID (idToken 발급에 필수)
 final googleSignInProvider = Provider<GoogleSignIn>((ref) {
-  return GoogleSignIn();
+  const webClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
+  return GoogleSignIn(
+    serverClientId: webClientId.isNotEmpty ? webClientId : null,
+  );
 });
