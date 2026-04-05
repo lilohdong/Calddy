@@ -33,16 +33,15 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
     setState(() => _isLoading = true);
 
     try {
-      final repository = ref.read(authRepositoryProvider);
       if (_isSignUp) {
-        await repository.signUpWithEmail(email: email, password: password);
+        await ref.read(signUpWithEmailUseCaseProvider)(email: email, password: password);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('회원가입 성공! 메일함을 확인하거나 바로 로그인해보세요.')),
           );
         }
       } else {
-        await repository.signInWithEmail(email: email, password: password);
+        await ref.read(signInWithEmailUseCaseProvider)(email: email, password: password);
       }
     } catch (e) {
       if (mounted) {

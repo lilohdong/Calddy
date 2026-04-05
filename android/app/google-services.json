@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "904742093517",
+    "project_id": "calddy-c933c",
+    "storage_bucket": "calddy-c933c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:904742093517:android:a18890b08fbb9f60539f84",
+        "android_client_info": {
+          "package_name": "com.RealMerge.calddy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "904742093517-ienfc6bsf6fk6teqo5lvb03abl4i61sj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.RealMerge.calddy",
+            "certificate_hash": "5a140e9d7a87c12cb6d864bf706a6d6e01a4228b"
+          }
+        },
+        {
+          "client_id": "904742093517-9be7vmoeji6o8p53vnujn05o73cnog7g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkHKpTFTWGDdUtSOPal9F84yhvVziQJdA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "904742093517-9be7vmoeji6o8p53vnujn05o73cnog7g.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "904742093517-3usghaj8rlb4d8h6pd0b81sohne6vavt.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.RealMerge.calddy"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
