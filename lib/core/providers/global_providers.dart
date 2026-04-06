@@ -9,9 +9,13 @@ final supabaseClientProvider = Provider<SupabaseClient>((ref) {
 
 /// 구글 로그인 객체 프로바이더
 /// serverClientId: Supabase Google OAuth에 등록한 Web Client ID (idToken 발급에 필수)
-final googleSignInProvider = Provider<GoogleSignIn>((ref) {
+///
+/// GOOGLE_WEB_CLIENT_ID 미설정 시 null을 반환한다.
+/// 앱 시작 체인(authStateProvider)이 이 Provider를 watch하므로,
+/// 여기서 throw하면 앱 전체가 크래시된다.
+/// 에러는 실제로 signInWithGoogle()을 호출하는 시점에 [GoogleConfigMissingFailure]로 처리한다.
+final googleSignInProvider = Provider<GoogleSignIn?>((ref) {
   const webClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
-  return GoogleSignIn(
-    serverClientId: webClientId.isNotEmpty ? webClientId : null,
-  );
+  if (webClientId.isEmpty) return null;
+  return GoogleSignIn(serverClientId: webClientId);
 });

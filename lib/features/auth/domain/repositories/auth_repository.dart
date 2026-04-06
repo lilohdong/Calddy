@@ -20,6 +20,15 @@ abstract class AuthRepository {
   /// 현재 로그인된 사용자 정보 조회
   Future<AppUser?> getCurrentUser();
 
+  /// 닉네임 저장 및 온보딩 완료 처리
+  Future<void> completeOnboarding({
+    required String userId,
+    required String nickname,
+  });
+
+  /// 비밀번호 재설정 이메일 전송
+  Future<void> sendPasswordResetEmail(String email);
+
   /// 로그아웃
   Future<void> signOut();
 

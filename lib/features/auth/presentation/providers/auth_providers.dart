@@ -9,6 +9,8 @@ import '../../domain/usecases/sign_in_with_email_use_case.dart';
 import '../../domain/usecases/sign_up_with_email_use_case.dart';
 import '../../domain/usecases/sign_out_use_case.dart';
 import '../../domain/usecases/get_current_user_use_case.dart';
+import '../../domain/usecases/complete_onboarding_use_case.dart';
+import '../../domain/usecases/send_password_reset_email_use_case.dart';
 
 /// 인증 데이터 소스 프로바이더
 final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>((ref) {
@@ -22,7 +24,6 @@ final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>((ref) {
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepositoryImpl(
     remoteDataSource: ref.watch(authRemoteDataSourceProvider),
-    supabase: ref.watch(supabaseClientProvider),
   );
 });
 
@@ -56,4 +57,12 @@ final signOutUseCaseProvider = Provider<SignOutUseCase>((ref) {
 
 final getCurrentUserUseCaseProvider = Provider<GetCurrentUserUseCase>((ref) {
   return GetCurrentUserUseCase(ref.watch(authRepositoryProvider));
+});
+
+final completeOnboardingUseCaseProvider = Provider<CompleteOnboardingUseCase>((ref) {
+  return CompleteOnboardingUseCase(ref.watch(authRepositoryProvider));
+});
+
+final sendPasswordResetEmailUseCaseProvider = Provider<SendPasswordResetEmailUseCase>((ref) {
+  return SendPasswordResetEmailUseCase(ref.watch(authRepositoryProvider));
 });

@@ -22,8 +22,4 @@ class AppUserModel extends AppUser {
     );
   }
 
-  /// 일반 User 정보가 없는 경우 빈 모델 생성 (필요 시)
-  factory AppUserModel.empty() {
-    return const AppUserModel(id: '', email: '');
-  }
 }

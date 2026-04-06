@@ -28,9 +28,8 @@ class SplashPage extends ConsumerWidget {
         }
       },
       loading: () => const _SplashLoadingView(),
-      error: (error, stack) => Scaffold(
-        body: Center(child: Text('초기화 에러: $error')),
-      ),
+      // 스트림 에러 발생 시 로그인 페이지로 안전하게 fallback
+      error: (e, _) => const LoginPage(),
     );
   }
 }

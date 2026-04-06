@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/error/failures.dart';
+import '../../domain/value_objects/password.dart';
 import '../providers/auth_providers.dart';
+import '../widgets/auth_error_dialog.dart';
+import 'forgot_password_page.dart';
 
 /// 이메일 회원가입/로그인 페이지
 class EmailAuthPage extends ConsumerStatefulWidget {
@@ -15,6 +19,7 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
   final _passwordController = TextEditingController();
   bool _isSignUp = false;
   bool _isLoading = false;
+  bool _isPasswordVisible = false;
 
   @override
   void dispose() {
@@ -23,32 +28,49 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
     super.dispose();
   }
 
-  /// 이메일 인증 실행
   Future<void> _submit() async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    final password = _passwordController.text; // trim 금지: 공백도 비밀번호의 일부
 
     if (email.isEmpty || password.isEmpty) return;
+
+    // 이메일 형식 검증 → 오류 시 모달
+    final emailValid = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(email);
+    if (!emailValid) {
+      if (mounted) await AuthErrorDialog.show(context, const EmailValidationFailure());
+      return;
+    }
+
+    // 회원가입 시에만 비밀번호 형식 검증 → 오류 시 모달
+    if (_isSignUp) {
+      final passwordFailure = Password.validate(password);
+      if (passwordFailure != null) {
+        if (mounted) await AuthErrorDialog.show(context, passwordFailure);
+        return;
+      }
+    }
 
     setState(() => _isLoading = true);
 
     try {
       if (_isSignUp) {
-        await ref.read(signUpWithEmailUseCaseProvider)(email: email, password: password);
+        await ref
+            .read(signUpWithEmailUseCaseProvider)
+            .call(email: email, password: password);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('회원가입 성공! 메일함을 확인하거나 바로 로그인해보세요.')),
+            const SnackBar(content: Text('회원가입 완료! 이메일을 확인하거나 바로 로그인해보세요.')),
           );
         }
       } else {
-        await ref.read(signInWithEmailUseCaseProvider)(email: email, password: password);
+        await ref
+            .read(signInWithEmailUseCaseProvider)
+            .call(email: email, password: password);
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류 발생: $e')),
-        );
-      }
+    } on AuthFailure catch (e) {
+      if (mounted) await AuthErrorDialog.show(context, e);
+    } catch (_) {
+      if (mounted) await AuthErrorDialog.show(context, const UnknownAuthFailure());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -66,25 +88,59 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
               controller: _emailController,
               decoration: const InputDecoration(labelText: '이메일'),
               keyboardType: TextInputType.emailAddress,
+              enabled: !_isLoading,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _passwordController,
-              decoration: const InputDecoration(labelText: '비밀번호'),
-              obscureText: true,
+              decoration: InputDecoration(
+                labelText: '비밀번호',
+                helperText: _isSignUp ? '8자 이상, 특수문자 포함, 공백 없이' : null,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isPasswordVisible
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                  ),
+                  tooltip: _isPasswordVisible ? '비밀번호 숨기기' : '비밀번호 표시',
+                  onPressed: () =>
+                      setState(() => _isPasswordVisible = !_isPasswordVisible),
+                ),
+              ),
+              obscureText: !_isPasswordVisible,
+              enabled: !_isLoading,
             ),
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: _isLoading ? null : _submit,
-              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-              child: _isLoading 
-                ? const CircularProgressIndicator() 
-                : Text(_isSignUp ? '가입하기' : '로그인'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(_isSignUp ? '가입하기' : '로그인'),
             ),
             TextButton(
-              onPressed: () => setState(() => _isSignUp = !_isSignUp),
+              onPressed: _isLoading
+                  ? null
+                  : () => setState(() => _isSignUp = !_isSignUp),
               child: Text(_isSignUp ? '이미 계정이 있나요? 로그인' : '계정이 없나요? 회원가입'),
             ),
+            if (!_isSignUp)
+              TextButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ForgotPasswordPage()),
+                        ),
+                child: const Text('비밀번호를 잊으셨나요?'),
+              ),
           ],
         ),
       ),
