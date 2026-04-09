@@ -1,31 +1,24 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/error/failures.dart';
 import '../../domain/entities/app_user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_data_source.dart';
 import '../models/app_user_model.dart';
 
 /// AuthRepository 인터페이스의 구체적인 구현체
+/// Supabase AuthException을 도메인 AuthFailure로 변환하여 throw
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource _remoteDataSource;
-  final SupabaseClient _supabase;
 
-  AuthRepositoryImpl({
-    required AuthRemoteDataSource remoteDataSource,
-    required SupabaseClient supabase,
-  })  : _remoteDataSource = remoteDataSource,
-        _supabase = supabase;
+  AuthRepositoryImpl({required AuthRemoteDataSource remoteDataSource})
+    : _remoteDataSource = remoteDataSource;
 
   @override
-  Future<AppUser?> signInWithGoogle() async {
+  Future<void> signInWithGoogle() async {
     try {
-      final response = await _remoteDataSource.signInWithGoogle();
-      final user = response.user;
-      if (user != null) {
-        return _getAppUserWithProfile(user);
-      }
-      return null;
-    } catch (e) {
-      rethrow;
+      await _remoteDataSource.signInWithGoogle();
+    } on AuthException catch (e) {
+      throw _mapAuthException(e);
     }
   }
 
@@ -40,12 +33,10 @@ class AuthRepositoryImpl implements AuthRepository {
         password: password,
       );
       final user = response.user;
-      if (user != null) {
-        return _getAppUserWithProfile(user);
-      }
-      return null;
-    } catch (e) {
-      rethrow;
+      if (user == null) return null;
+      return _buildAppUser(user);
+    } on AuthException catch (e) {
+      throw _mapAuthException(e);
     }
   }
 
@@ -60,33 +51,56 @@ class AuthRepositoryImpl implements AuthRepository {
         password: password,
       );
       final user = response.user;
-      if (user != null) {
-        return _getAppUserWithProfile(user);
-      }
-      return null;
-    } catch (e) {
-      rethrow;
+      if (user == null) return null;
+      return _buildAppUser(user);
+    } on AuthException catch (e) {
+      throw _mapAuthException(e);
     }
   }
 
   @override
   Future<AppUser?> getCurrentUser() async {
     final user = _remoteDataSource.currentUser;
-    if (user != null) {
-      return _getAppUserWithProfile(user);
-    }
-    return null;
+    if (user == null) return null;
+    return _buildAppUser(user);
   }
 
-  /// auth.users와 profiles 데이터를 결합하여 AppUser 반환
-  Future<AppUser> _getAppUserWithProfile(User user) async {
-    final profileData = await _supabase
-        .from('profiles')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
+  @override
+  Future<void> completeOnboarding({required String nickname}) async {
+    // 1단계: 프로필 업데이트 — 실패 시 온보딩 전체를 실패로 처리
+    try {
+      await _remoteDataSource.completeOnboarding(nickname: nickname);
+    } on AuthException catch (e) {
+      throw _mapAuthException(e);
+    } catch (e) {
+      // PostgreSQL unique constraint 위반 (에러 코드 23505) → 닉네임 중복
+      if (e is PostgrestException && e.code == '23505') {
+        throw const DuplicateNicknameFailure();
+      }
+      throw const UnknownAuthFailure();
+    }
 
-    return AppUserModel.fromSupabase(user, profileData);
+    // 2단계: 세션 갱신 — authStateChanges 스트림 재트리거용.
+    // DB 업데이트는 이미 성공했으므로 갱신 실패는 온보딩 성공으로 간주하고 무시한다.
+    // (스트림은 다음 세션 이벤트에서 자동으로 최신 프로필을 가져온다.)
+    try {
+      await _remoteDataSource.refreshSession();
+    } on AuthException catch (_) {
+      // 무시: 세션 만료 등의 이유로 갱신에 실패해도 온보딩 자체는 완료된 상태
+    } catch (_) {
+      // 무시: 동일한 이유
+    }
+  }
+
+  @override
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _remoteDataSource.sendPasswordResetEmail(email);
+    } on AuthException catch (e) {
+      throw _mapAuthException(e);
+    } catch (_) {
+      throw const UnknownAuthFailure();
+    }
   }
 
   @override
@@ -95,13 +109,78 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Stream<AppUser?> get authStateChanges {
-    return _remoteDataSource.onAuthStateChange.asyncMap((state) async {
-      final user = state.session?.user;
-      if (user != null) {
-        return _getAppUserWithProfile(user);
+  Stream<AppUser?> get authStateChanges => _remoteDataSource.onAuthStateChange;
+
+  // ── Private helpers ───────────────────────────────────────────
+
+  Future<AppUser> _buildAppUser(User user) async {
+    final profile = await _remoteDataSource.getUserProfile(user.id);
+    return AppUserModel.fromSupabase(user, profile);
+  }
+
+  /// Supabase [AuthException]을 도메인 [AuthFailure]로 변환.
+  /// statusCode를 1순위, message 패턴을 2순위로 사용하여
+  /// SDK 버전업으로 메시지가 변경되어도 핵심 분류가 유지되도록 한다.
+  AuthFailure _mapAuthException(AuthException e) {
+    final msg = e.message.toLowerCase();
+    final statusCode = e.statusCode;
+
+    // ── 앱 내부 커스텀 에러 코드 (statusCode 없음) ──────────────
+    if (msg.contains('google_config_missing')) {
+      return const GoogleConfigMissingFailure();
+    }
+    if (msg.contains('google_sign_in_cancelled')) {
+      return const GoogleSignInCancelledFailure();
+    }
+    if (msg.contains('google_token_fetch_failed')) {
+      return const NetworkFailure();
+    }
+    if (msg.contains('session_expired')) {
+      return const UnknownAuthFailure();
+    }
+
+    // ── HTTP 상태 코드 기반 분류 (1순위) ────────────────────────
+    if (statusCode == '429' || msg.contains('too many requests') || msg.contains('rate limit')) {
+      return const TooManyRequestsFailure();
+    }
+    if (statusCode == '422') {
+      if (msg.contains('user already registered') ||
+          msg.contains('email already') ||
+          msg.contains('already been registered')) {
+        return const EmailAlreadyInUseFailure();
       }
-      return null;
-    });
+    }
+    if (statusCode == '400') {
+      if (msg.contains('invalid login credentials') ||
+          msg.contains('invalid_credentials') ||
+          msg.contains('wrong password')) {
+        return const InvalidCredentialsFailure();
+      }
+      if (msg.contains('email not confirmed') || msg.contains('not confirmed')) {
+        return const EmailNotConfirmedFailure();
+      }
+    }
+
+    // ── 메시지 패턴 기반 분류 (2순위 fallback) ──────────────────
+    if (msg.contains('invalid login credentials') ||
+        msg.contains('invalid_credentials') ||
+        msg.contains('wrong password')) {
+      return const InvalidCredentialsFailure();
+    }
+    if (msg.contains('user already registered') ||
+        msg.contains('email already') ||
+        msg.contains('already been registered')) {
+      return const EmailAlreadyInUseFailure();
+    }
+    if (msg.contains('email not confirmed') || msg.contains('not confirmed')) {
+      return const EmailNotConfirmedFailure();
+    }
+    if (msg.contains('network') ||
+        msg.contains('connection') ||
+        msg.contains('timeout')) {
+      return const NetworkFailure();
+    }
+
+    return const UnknownAuthFailure();
   }
 }

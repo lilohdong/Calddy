@@ -1,0 +1,75 @@
+/// 앱 전반에서 사용하는 Failure 계층 구조
+/// sealed class를 활용하여 exhaustive pattern matching 지원 (Dart 3)
+sealed class AuthFailure implements Exception {
+  final String message;
+  const AuthFailure(this.message);
+}
+
+/// 이메일/비밀번호 불일치
+final class InvalidCredentialsFailure extends AuthFailure {
+  const InvalidCredentialsFailure()
+      : super('이메일 또는 비밀번호가 올바르지 않습니다.');
+}
+
+/// 이메일 중복 가입
+final class EmailAlreadyInUseFailure extends AuthFailure {
+  const EmailAlreadyInUseFailure()
+      : super('이미 사용 중인 이메일 주소입니다.');
+}
+
+/// 이메일 인증 미완료
+final class EmailNotConfirmedFailure extends AuthFailure {
+  const EmailNotConfirmedFailure()
+      : super('이메일 인증이 완료되지 않았습니다.\n메일함을 확인해주세요.');
+}
+
+/// 구글 로그인 사용자가 직접 취소
+final class GoogleSignInCancelledFailure extends AuthFailure {
+  const GoogleSignInCancelledFailure()
+      : super('구글 로그인이 취소되었습니다.');
+}
+
+/// GOOGLE_WEB_CLIENT_ID 환경변수 미설정
+final class GoogleConfigMissingFailure extends AuthFailure {
+  const GoogleConfigMissingFailure()
+      : super('구글 로그인 설정이 올바르지 않습니다.\n앱을 업데이트하거나 관리자에게 문의해주세요.');
+}
+
+/// 요청 횟수 초과
+final class TooManyRequestsFailure extends AuthFailure {
+  const TooManyRequestsFailure()
+      : super('요청이 너무 많습니다. 잠시 후 다시 시도해주세요.');
+}
+
+/// 닉네임 중복
+final class DuplicateNicknameFailure extends AuthFailure {
+  const DuplicateNicknameFailure()
+      : super('이미 사용 중인 닉네임입니다.\n다른 닉네임을 입력해주세요.');
+}
+
+/// 네트워크 오류
+final class NetworkFailure extends AuthFailure {
+  const NetworkFailure()
+      : super('네트워크 연결을 확인하고 다시 시도해주세요.');
+}
+
+/// 비밀번호 형식 오류 (Value Object 검증 실패)
+final class PasswordValidationFailure extends AuthFailure {
+  const PasswordValidationFailure(super.message);
+}
+
+/// 이메일 형식 오류
+final class EmailValidationFailure extends AuthFailure {
+  const EmailValidationFailure()
+      : super('올바른 이메일 형식을 입력해주세요.');
+}
+
+/// 닉네임 형식 오류 (Value Object 검증 실패)
+final class NicknameValidationFailure extends AuthFailure {
+  const NicknameValidationFailure(super.message);
+}
+
+/// 분류되지 않은 서버 오류
+final class UnknownAuthFailure extends AuthFailure {
+  const UnknownAuthFailure() : super('알 수 없는 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.');
+}

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/providers/global_providers.dart';
+import '../../../../core/error/failures.dart';
+import '../../domain/value_objects/nickname.dart';
 import '../providers/auth_providers.dart';
+import '../widgets/auth_error_dialog.dart';
 
 /// 닉네임 설정 등 초기 온보딩 화면
 class OnboardingPage extends ConsumerStatefulWidget {
@@ -14,6 +16,7 @@ class OnboardingPage extends ConsumerStatefulWidget {
 class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   final _nicknameController = TextEditingController();
   bool _isLoading = false;
+  bool _isSigningOut = false;
 
   @override
   void dispose() {
@@ -21,41 +24,59 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     super.dispose();
   }
 
-  /// 닉네임 저장 및 온보딩 완료 처리
   Future<void> _completeOnboarding() async {
     final nickname = _nicknameController.text.trim();
-    if (nickname.isEmpty) return;
+
+    // 도메인 Value Object로 닉네임 형식 검증
+    final validationError = Nickname.validate(nickname);
+    if (validationError != null) {
+      if (mounted) await AuthErrorDialog.show(context, validationError);
+      return;
+    }
+
+    // authStateProvider가 로딩 중이거나 유저가 없으면 진행 불가
+    // (SplashPage에서 라우팅하므로 정상 상황에서는 발생하지 않음)
+    final authState = ref.read(authStateProvider);
+    final user = authState.valueOrNull;
+    if (user == null) {
+      if (mounted) {
+        await AuthErrorDialog.show(context, const UnknownAuthFailure());
+      }
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      final supabase = ref.read(supabaseClientProvider);
-      final user = ref.read(currentUserProvider);
-
-      if (user == null) return;
-
-      // profiles 테이블 업데이트
-      await supabase.from('profiles').update({
-        'nickname': nickname,
-        'is_onboarded': true,
-      }).eq('id', user.id);
-
-      // auth 세션 refresh → authStateChanges 스트림 재트리거
-      // profiles 업데이트는 onAuthStateChange를 자동 트리거하지 않으므로 수동 refresh
-      await supabase.auth.refreshSession();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('설정 실패: 중복된 닉네임이거나 오류가 발생했습니다.')),
-        );
-      }
+      await ref.read(completeOnboardingUseCaseProvider).call(
+            nickname: nickname,
+          );
+    } on AuthFailure catch (e) {
+      if (mounted) await AuthErrorDialog.show(context, e);
+    } catch (_) {
+      if (mounted) await AuthErrorDialog.show(context, const UnknownAuthFailure());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  Future<void> _signOut() async {
+    setState(() => _isSigningOut = true);
+    try {
+      await ref.read(signOutUseCaseProvider)();
+    } on AuthFailure catch (e) {
+      if (mounted) await AuthErrorDialog.show(context, e);
+    } catch (_) {
+      if (mounted) await AuthErrorDialog.show(context, const UnknownAuthFailure());
+    } finally {
+      if (mounted) setState(() => _isSigningOut = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool anyLoading = _isLoading || _isSigningOut;
+
     return Scaffold(
       appBar: AppBar(title: const Text('초기 설정')),
       body: Padding(
@@ -75,24 +96,36 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               decoration: const InputDecoration(
                 labelText: '닉네임',
                 border: OutlineInputBorder(),
-                hintText: '다른 사용자와 중복되지 않는 닉네임',
+                hintText: '한글, 영문, 숫자, _, - 사용 가능',
+                helperText: '2~20자, 공백 불가',
               ),
               maxLength: 20,
+              enabled: !anyLoading,
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _isLoading ? null : _completeOnboarding,
+              onPressed: anyLoading ? null : _completeOnboarding,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
               ),
-              child: _isLoading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('시작하기'),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('시작하기'),
             ),
             const SizedBox(height: 16),
             TextButton(
-              onPressed: () => ref.read(signOutUseCaseProvider)(),
-              child: const Text('로그아웃'),
+              onPressed: anyLoading ? null : _signOut,
+              child: _isSigningOut
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('로그아웃'),
             ),
           ],
         ),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/error/failures.dart';
+import '../../../../core/router/app_router.dart';
 import '../providers/auth_providers.dart';
-import 'email_auth_page.dart';
+import '../widgets/auth_error_dialog.dart';
 
 /// 로그인 화면
 class LoginPage extends ConsumerStatefulWidget {
@@ -18,12 +21,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() => _isLoading = true);
     try {
       await ref.read(signInWithGoogleUseCaseProvider)();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('로그인 실패: $e')),
-        );
-      }
+    } on AuthFailure catch (e) {
+      if (mounted) await AuthErrorDialog.show(context, e);
+    } catch (_) {
+      if (mounted) await AuthErrorDialog.show(context, const UnknownAuthFailure());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -63,12 +64,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             TextButton(
               onPressed: _isLoading
                   ? null
-                  : () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const EmailAuthPage()),
-                      );
-                    },
+                  : () => context.push(AppRoutes.loginEmail),
               child: const Text('이메일로 시작하기'),
             ),
           ],
