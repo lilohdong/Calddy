@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,6 +16,7 @@ final supabaseClientProvider = Provider<SupabaseClient>((ref) {
 /// 여기서 throw하면 앱 전체가 크래시된다.
 /// 에러는 실제로 signInWithGoogle()을 호출하는 시점에 [GoogleConfigMissingFailure]로 처리한다.
 final googleSignInProvider = Provider<GoogleSignIn?>((ref) {
+  if (kIsWeb) return null; // 웹은 Supabase OAuth 리다이렉트 방식 사용
   const webClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
   if (webClientId.isEmpty) return null;
   return GoogleSignIn(serverClientId: webClientId);

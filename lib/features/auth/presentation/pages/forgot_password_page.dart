@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/error/failures.dart';
+import '../../domain/value_objects/email.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_error_dialog.dart';
 
@@ -27,9 +29,9 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
     if (email.isEmpty) return;
 
     // 이메일 형식 검증 → 오류 시 모달
-    final emailValid = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(email);
-    if (!emailValid) {
-      if (mounted) await AuthErrorDialog.show(context, const EmailValidationFailure());
+    final emailFailure = Email.validate(email);
+    if (emailFailure != null) {
+      if (mounted) await AuthErrorDialog.show(context, emailFailure);
       return;
     }
 
@@ -47,7 +49,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
             duration: Duration(seconds: 4),
           ),
         );
-        Navigator.of(context).pop();
+        context.pop();
       }
     } on AuthFailure catch (e) {
       if (mounted) await AuthErrorDialog.show(context, e);

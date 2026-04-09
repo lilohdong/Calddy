@@ -5,6 +5,6 @@ class CompleteOnboardingUseCase {
 
   CompleteOnboardingUseCase(this._repository);
 
-  Future<void> call({required String userId, required String nickname}) =>
-      _repository.completeOnboarding(userId: userId, nickname: nickname);
+  Future<void> call({required String nickname}) =>
+      _repository.completeOnboarding(nickname: nickname);
 }

@@ -14,12 +14,9 @@ class AuthRepositoryImpl implements AuthRepository {
     : _remoteDataSource = remoteDataSource;
 
   @override
-  Future<AppUser?> signInWithGoogle() async {
+  Future<void> signInWithGoogle() async {
     try {
-      final response = await _remoteDataSource.signInWithGoogle();
-      final user = response.user;
-      if (user == null) return null;
-      return _buildAppUser(user);
+      await _remoteDataSource.signInWithGoogle();
     } on AuthException catch (e) {
       throw _mapAuthException(e);
     }
@@ -69,16 +66,10 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> completeOnboarding({
-    required String userId,
-    required String nickname,
-  }) async {
+  Future<void> completeOnboarding({required String nickname}) async {
     // 1단계: 프로필 업데이트 — 실패 시 온보딩 전체를 실패로 처리
     try {
-      await _remoteDataSource.completeOnboarding(
-        userId: userId,
-        nickname: nickname,
-      );
+      await _remoteDataSource.completeOnboarding(nickname: nickname);
     } on AuthException catch (e) {
       throw _mapAuthException(e);
     } catch (e) {
@@ -118,19 +109,7 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Stream<AppUser?> get authStateChanges {
-    return _remoteDataSource.onAuthStateChange.asyncMap((state) async {
-      final user = state.session?.user;
-      if (user == null) return null;
-      try {
-        return await _buildAppUser(user);
-      } catch (_) {
-        // profiles 조회 실패 시 profile 없이 기본값으로 AppUser 반환.
-        // 스트림 에러 전파를 막아 SplashPage가 LoginPage로 fallback하는 것을 방지.
-        return AppUserModel.fromSupabase(user, null);
-      }
-    });
-  }
+  Stream<AppUser?> get authStateChanges => _remoteDataSource.onAuthStateChange;
 
   // ── Private helpers ───────────────────────────────────────────
 
@@ -139,10 +118,14 @@ class AuthRepositoryImpl implements AuthRepository {
     return AppUserModel.fromSupabase(user, profile);
   }
 
-  /// Supabase [AuthException]을 도메인 [AuthFailure]로 변환
+  /// Supabase [AuthException]을 도메인 [AuthFailure]로 변환.
+  /// statusCode를 1순위, message 패턴을 2순위로 사용하여
+  /// SDK 버전업으로 메시지가 변경되어도 핵심 분류가 유지되도록 한다.
   AuthFailure _mapAuthException(AuthException e) {
     final msg = e.message.toLowerCase();
+    final statusCode = e.statusCode;
 
+    // ── 앱 내부 커스텀 에러 코드 (statusCode 없음) ──────────────
     if (msg.contains('google_config_missing')) {
       return const GoogleConfigMissingFailure();
     }
@@ -152,6 +135,33 @@ class AuthRepositoryImpl implements AuthRepository {
     if (msg.contains('google_token_fetch_failed')) {
       return const NetworkFailure();
     }
+    if (msg.contains('session_expired')) {
+      return const UnknownAuthFailure();
+    }
+
+    // ── HTTP 상태 코드 기반 분류 (1순위) ────────────────────────
+    if (statusCode == '429' || msg.contains('too many requests') || msg.contains('rate limit')) {
+      return const TooManyRequestsFailure();
+    }
+    if (statusCode == '422') {
+      if (msg.contains('user already registered') ||
+          msg.contains('email already') ||
+          msg.contains('already been registered')) {
+        return const EmailAlreadyInUseFailure();
+      }
+    }
+    if (statusCode == '400') {
+      if (msg.contains('invalid login credentials') ||
+          msg.contains('invalid_credentials') ||
+          msg.contains('wrong password')) {
+        return const InvalidCredentialsFailure();
+      }
+      if (msg.contains('email not confirmed') || msg.contains('not confirmed')) {
+        return const EmailNotConfirmedFailure();
+      }
+    }
+
+    // ── 메시지 패턴 기반 분류 (2순위 fallback) ──────────────────
     if (msg.contains('invalid login credentials') ||
         msg.contains('invalid_credentials') ||
         msg.contains('wrong password')) {
@@ -164,9 +174,6 @@ class AuthRepositoryImpl implements AuthRepository {
     }
     if (msg.contains('email not confirmed') || msg.contains('not confirmed')) {
       return const EmailNotConfirmedFailure();
-    }
-    if (msg.contains('too many requests') || msg.contains('rate limit')) {
-      return const TooManyRequestsFailure();
     }
     if (msg.contains('network') ||
         msg.contains('connection') ||

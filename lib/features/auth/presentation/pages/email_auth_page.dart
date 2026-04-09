@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/router/app_router.dart';
+import '../../domain/value_objects/email.dart';
 import '../../domain/value_objects/password.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_error_dialog.dart';
-import 'forgot_password_page.dart';
 
 /// 이메일 회원가입/로그인 페이지
 class EmailAuthPage extends ConsumerStatefulWidget {
@@ -35,9 +37,9 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
     if (email.isEmpty || password.isEmpty) return;
 
     // 이메일 형식 검증 → 오류 시 모달
-    final emailValid = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(email);
-    if (!emailValid) {
-      if (mounted) await AuthErrorDialog.show(context, const EmailValidationFailure());
+    final emailFailure = Email.validate(email);
+    if (emailFailure != null) {
+      if (mounted) await AuthErrorDialog.show(context, emailFailure);
       return;
     }
 
@@ -134,11 +136,7 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
               TextButton(
                 onPressed: _isLoading
                     ? null
-                    : () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const ForgotPasswordPage()),
-                        ),
+                    : () => context.push(AppRoutes.loginEmailForgot),
                 child: const Text('비밀번호를 잊으셨나요?'),
               ),
           ],

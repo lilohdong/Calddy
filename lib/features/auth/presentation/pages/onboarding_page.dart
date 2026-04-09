@@ -49,7 +49,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
     try {
       await ref.read(completeOnboardingUseCaseProvider).call(
-            userId: user.id,
             nickname: nickname,
           );
     } on AuthFailure catch (e) {

@@ -119,19 +119,17 @@ void main() {
     test('닉네임 중복 시 DuplicateNicknameFailure를 throw한다', () {
       // PostgreSQL error code 23505 = unique_violation
       when(() => mockDataSource.completeOnboarding(
-            userId: any(named: 'userId'),
             nickname: any(named: 'nickname'),
           )).thenThrow(PostgrestException(message: 'duplicate key', code: '23505'));
 
       expect(
-        () => repository.completeOnboarding(userId: 'uid', nickname: 'taken'),
+        () => repository.completeOnboarding(nickname: 'taken'),
         throwsA(isA<DuplicateNicknameFailure>()),
       );
     });
 
     test('refreshSession 실패 시에도 완료로 처리한다 (throw 없음)', () async {
       when(() => mockDataSource.completeOnboarding(
-            userId: any(named: 'userId'),
             nickname: any(named: 'nickname'),
           )).thenAnswer((_) async {});
       when(() => mockDataSource.refreshSession())
@@ -139,7 +137,7 @@ void main() {
 
       // throw하지 않아야 한다
       await expectLater(
-        repository.completeOnboarding(userId: 'uid', nickname: 'nick'),
+        repository.completeOnboarding(nickname: 'nick'),
         completes,
       );
     });
