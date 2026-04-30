@@ -1,9 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/error/failures.dart';
-import '../../domain/entities/app_user.dart';
+import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_data_source.dart';
-import '../models/app_user_model.dart';
 
 /// AuthRepository 인터페이스의 구체적인 구현체
 /// Supabase AuthException을 도메인 AuthFailure로 변환하여 throw
@@ -23,46 +22,38 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<AppUser?> signUpWithEmail({
+  Future<UserEntity?> signUpWithEmail({
     required String email,
     required String password,
   }) async {
     try {
-      final response = await _remoteDataSource.signUpWithEmail(
+      return await _remoteDataSource.signUpWithEmail(
         email: email,
         password: password,
       );
-      final user = response.user;
-      if (user == null) return null;
-      return _buildAppUser(user);
     } on AuthException catch (e) {
       throw _mapAuthException(e);
     }
   }
 
   @override
-  Future<AppUser?> signInWithEmail({
+  Future<UserEntity?> signInWithEmail({
     required String email,
     required String password,
   }) async {
     try {
-      final response = await _remoteDataSource.signInWithEmail(
+      return await _remoteDataSource.signInWithEmail(
         email: email,
         password: password,
       );
-      final user = response.user;
-      if (user == null) return null;
-      return _buildAppUser(user);
     } on AuthException catch (e) {
       throw _mapAuthException(e);
     }
   }
 
   @override
-  Future<AppUser?> getCurrentUser() async {
-    final user = _remoteDataSource.currentUser;
-    if (user == null) return null;
-    return _buildAppUser(user);
+  Future<UserEntity?> getCurrentUser() async {
+    return _remoteDataSource.currentUser;
   }
 
   @override
@@ -109,14 +100,20 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Stream<AppUser?> get authStateChanges => _remoteDataSource.onAuthStateChange;
+  Future<void> deleteAccount() async {
+    try {
+      await _remoteDataSource.deleteAccount();
+    } on AuthException catch (e) {
+      throw _mapAuthException(e);
+    } catch (_) {
+      throw const UnknownAuthFailure();
+    }
+  }
+
+  @override
+  Stream<UserEntity?> get authStateChanges => _remoteDataSource.onAuthStateChange;
 
   // ── Private helpers ───────────────────────────────────────────
-
-  Future<AppUser> _buildAppUser(User user) async {
-    final profile = await _remoteDataSource.getUserProfile(user.id);
-    return AppUserModel.fromSupabase(user, profile);
-  }
 
   /// Supabase [AuthException]을 도메인 [AuthFailure]로 변환.
   /// statusCode를 1순위, message 패턴을 2순위로 사용하여

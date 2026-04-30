@@ -9,22 +9,17 @@ import '../../features/auth/presentation/pages/onboarding_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../features/calendar/presentation/pages/calendar_page.dart';
-
-/// 앱 전체 라우트 경로 상수
-abstract class AppRoutes {
-  static const splash = '/splash';
-  static const login = '/login';
-  static const loginEmail = '/login/email';
-  static const loginEmailForgot = '/login/email/forgot';
-  static const onboarding = '/onboarding';
-  static const calendar = '/calendar';
-  static const networkError = '/error';
-}
+import '../../features/feed/presentation/pages/feed_page.dart';
+import '../../features/friend/presentation/pages/friends_page.dart';
+import '../../features/map/presentation/pages/place_picker_page.dart';
+import '../../features/notification/presentation/pages/notifications_page.dart';
+import '../../features/user/presentation/pages/profile_page.dart';
+import 'app_routes.dart';
+import 'main_shell.dart';
 
 /// authStateProvider 변경 시 GoRouter에 리프레시 신호를 보내는 노티파이어
 class _RouterNotifier extends ChangeNotifier {
   _RouterNotifier(this._ref) {
-    // authStateProvider가 바뀔 때마다 GoRouter의 redirect를 재평가
     _ref.listen(authStateProvider, (_, _) => notifyListeners());
   }
 
@@ -58,11 +53,11 @@ class _RouterNotifier extends ChangeNotifier {
       return AppRoutes.onboarding;
     }
 
-    // 로그인 + 온보딩 완료 → 인증 관련 경로에 있으면 캘린더로
+    // 로그인 + 온보딩 완료 → 인증 경로에 있으면 홈으로
     if (location == AppRoutes.splash ||
         location.startsWith(AppRoutes.login) ||
         location == AppRoutes.onboarding) {
-      return AppRoutes.calendar;
+      return AppRoutes.home;
     }
 
     return null;
@@ -78,6 +73,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: notifier,
     redirect: notifier.redirect,
     routes: [
+      // ── Auth 경로 ────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.splash,
         builder: (_, _) => const SplashPage(),
@@ -103,12 +99,105 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const OnboardingPage(),
       ),
       GoRoute(
-        path: AppRoutes.calendar,
-        builder: (_, _) => const CalendarPage(),
-      ),
-      GoRoute(
         path: AppRoutes.networkError,
         builder: (_, _) => const NetworkErrorPage(),
+      ),
+
+      // ── Shell (하단 탭 네비게이션) ───────────────────────────
+      ShellRoute(
+        builder: (context, state, child) => MainShell(child: child),
+        routes: [
+          GoRoute(
+            path: AppRoutes.home,
+            builder: (_, _) => const CalendarPage(),
+            routes: [
+              GoRoute(
+                path: 'event/create',
+                builder: (_, _) => const _PlaceholderPage(title: '일정 만들기'),
+              ),
+              GoRoute(
+                path: 'event/:eventId',
+                builder: (_, s) => _PlaceholderPage(
+                  title: '일정 상세 (${s.pathParameters['eventId']})',
+                ),
+              ),
+              GoRoute(
+                path: 'drawing/:date',
+                builder: (_, s) => _PlaceholderPage(
+                  title: '드로잉 (${s.pathParameters['date']})',
+                ),
+              ),
+              GoRoute(
+                path: 'appointment/create',
+                builder: (_, _) => const _PlaceholderPage(title: '약속 만들기'),
+              ),
+              GoRoute(
+                path: 'appointment/:appointmentId',
+                builder: (_, s) => _PlaceholderPage(
+                  title: '약속 상세 (${s.pathParameters['appointmentId']})',
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: AppRoutes.feed,
+            builder: (_, _) => const FeedPage(),
+            routes: [
+              GoRoute(
+                path: 'post/create',
+                builder: (_, _) => const _PlaceholderPage(title: '게시물 작성'),
+              ),
+              GoRoute(
+                path: 'post/:postId',
+                builder: (_, s) => _PlaceholderPage(
+                  title: '게시물 (${s.pathParameters['postId']})',
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: AppRoutes.friends,
+            builder: (_, _) => const FriendsPage(),
+            routes: [
+              GoRoute(
+                path: ':friendId/calendar',
+                builder: (_, s) => _PlaceholderPage(
+                  title: '친구 캘린더 (${s.pathParameters['friendId']})',
+                ),
+              ),
+              GoRoute(
+                path: ':friendId/merge',
+                builder: (_, s) => _PlaceholderPage(
+                  title: '캘린더 합치기 (${s.pathParameters['friendId']})',
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: AppRoutes.profile,
+            builder: (_, _) => const ProfilePage(),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (_, _) => const _PlaceholderPage(title: '프로필 편집'),
+              ),
+              GoRoute(
+                path: 'settings',
+                builder: (_, _) => const _PlaceholderPage(title: '설정'),
+              ),
+            ],
+          ),
+        ],
+      ),
+
+      // ── 단독 경로 ────────────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.notifications,
+        builder: (_, _) => const NotificationsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.placePicker,
+        builder: (_, _) => const PlacePickerPage(),
       ),
     ],
   );
@@ -120,3 +209,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return router;
 });
+
+/// 아직 구현되지 않은 페이지용 임시 플레이스홀더
+class _PlaceholderPage extends StatelessWidget {
+  const _PlaceholderPage({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(child: Text('$title 준비 중')),
+    );
+  }
+}

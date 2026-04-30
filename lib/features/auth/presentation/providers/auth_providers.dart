@@ -1,16 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/providers/global_providers.dart';
 import '../../data/datasources/auth_remote_data_source.dart';
+import '../../data/datasources/auth_remote_data_source_impl.dart';
 import '../../data/repositories/auth_repository_impl.dart';
-import '../../domain/entities/app_user.dart';
+import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
-import '../../domain/usecases/sign_in_with_google_use_case.dart';
-import '../../domain/usecases/sign_in_with_email_use_case.dart';
-import '../../domain/usecases/sign_up_with_email_use_case.dart';
-import '../../domain/usecases/sign_out_use_case.dart';
-import '../../domain/usecases/get_current_user_use_case.dart';
 import '../../domain/usecases/complete_onboarding_use_case.dart';
+import '../../domain/usecases/delete_account_use_case.dart';
+import '../../domain/usecases/get_current_user_use_case.dart';
 import '../../domain/usecases/send_password_reset_email_use_case.dart';
+import '../../domain/usecases/sign_in_with_email_use_case.dart';
+import '../../domain/usecases/sign_in_with_google_use_case.dart';
+import '../../domain/usecases/sign_out_use_case.dart';
+import '../../domain/usecases/sign_up_with_email_use_case.dart';
 
 /// 인증 데이터 소스 프로바이더
 final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>((ref) {
@@ -28,12 +30,12 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 });
 
 /// 인증 상태 스트림 프로바이더
-final authStateProvider = StreamProvider<AppUser?>((ref) {
+final authStateProvider = StreamProvider<UserEntity?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges;
 });
 
 /// 현재 사용자 정보 프로바이더
-final currentUserProvider = Provider<AppUser?>((ref) {
+final currentUserProvider = Provider<UserEntity?>((ref) {
   return ref.watch(authStateProvider).value;
 });
 
@@ -63,6 +65,11 @@ final completeOnboardingUseCaseProvider = Provider<CompleteOnboardingUseCase>((r
   return CompleteOnboardingUseCase(ref.watch(authRepositoryProvider));
 });
 
-final sendPasswordResetEmailUseCaseProvider = Provider<SendPasswordResetEmailUseCase>((ref) {
+final sendPasswordResetEmailUseCaseProvider =
+    Provider<SendPasswordResetEmailUseCase>((ref) {
   return SendPasswordResetEmailUseCase(ref.watch(authRepositoryProvider));
+});
+
+final deleteAccountUseCaseProvider = Provider<DeleteAccountUseCase>((ref) {
+  return DeleteAccountUseCase(ref.watch(authRepositoryProvider));
 });

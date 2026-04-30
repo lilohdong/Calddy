@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/error/failures.dart';
-import '../../../../core/router/app_router.dart';
+import '../../../../core/router/app_routes.dart';
+import '../../../../core/usecase/usecase.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_error_dialog.dart';
 
@@ -20,7 +21,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
-      await ref.read(signInWithGoogleUseCaseProvider)();
+      await ref.read(signInWithGoogleUseCaseProvider).call(const NoParams());
     } on AuthFailure catch (e) {
       if (mounted) await AuthErrorDialog.show(context, e);
     } catch (_) {

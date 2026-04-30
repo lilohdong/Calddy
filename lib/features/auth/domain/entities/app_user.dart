@@ -1,16 +1,5 @@
-/// 인증된 사용자 정보를 나타내는 엔티티
-class AppUser {
-  final String id;
-  final String email;
-  final String? name;
-  final String? avatarUrl;
-  final bool isOnboarded;
+// 하위 호환성 유지용 re-export. 새 코드는 user_entity.dart를 import할 것.
+import 'package:calddy/features/auth/domain/entities/user_entity.dart';
 
-  const AppUser({
-    required this.id,
-    required this.email,
-    this.name,
-    this.avatarUrl,
-    this.isOnboarded = false,
-  });
-}
+export 'user_entity.dart';
+typedef AppUser = UserEntity;

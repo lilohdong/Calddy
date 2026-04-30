@@ -1,10 +1,17 @@
+import '../../../../core/usecase/usecase.dart';
 import '../repositories/auth_repository.dart';
 
-class CompleteOnboardingUseCase {
-  final AuthRepository _repository;
+class CompleteOnboardingParams {
+  final String nickname;
+  const CompleteOnboardingParams({required this.nickname});
+}
 
+class CompleteOnboardingUseCase
+    implements UseCase<void, CompleteOnboardingParams> {
+  final AuthRepository _repository;
   CompleteOnboardingUseCase(this._repository);
 
-  Future<void> call({required String nickname}) =>
-      _repository.completeOnboarding(nickname: nickname);
+  @override
+  Future<void> call(CompleteOnboardingParams params) =>
+      _repository.completeOnboarding(nickname: params.nickname);
 }

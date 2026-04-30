@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/usecase/usecase.dart';
+import '../../domain/usecases/complete_onboarding_use_case.dart';
 import '../../domain/value_objects/nickname.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_error_dialog.dart';
@@ -49,7 +51,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
     try {
       await ref.read(completeOnboardingUseCaseProvider).call(
-            nickname: nickname,
+            CompleteOnboardingParams(nickname: nickname),
           );
     } on AuthFailure catch (e) {
       if (mounted) await AuthErrorDialog.show(context, e);
@@ -63,7 +65,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   Future<void> _signOut() async {
     setState(() => _isSigningOut = true);
     try {
-      await ref.read(signOutUseCaseProvider)();
+      await ref.read(signOutUseCaseProvider).call(const NoParams());
     } on AuthFailure catch (e) {
       if (mounted) await AuthErrorDialog.show(context, e);
     } catch (_) {

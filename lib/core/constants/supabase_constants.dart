@@ -1,7 +1,30 @@
 import 'package:flutter/foundation.dart';
 
 class SupabaseConstants {
-  // 로컬/개발 환경 URL (env.json 또는 --dart-define)
+  // ── Tables ────────────────────────────────────────────────────
+  static const String profiles            = 'profiles';
+  static const String events              = 'events';
+  static const String habits              = 'habits';
+  static const String habitLogs           = 'habit_logs';
+  static const String ranges              = 'ranges';
+  static const String drawings            = 'drawings';
+  static const String posts               = 'posts';
+  static const String postLikes           = 'post_likes';
+  static const String comments            = 'comments';
+  static const String appointments        = 'appointments';
+  static const String appointmentInvites  = 'appointment_invites';
+  static const String friendRequests      = 'friend_requests';
+  static const String friends             = 'friends';
+  static const String notifications       = 'notifications';
+  static const String reports             = 'reports';
+  static const String holidays            = 'holidays';
+
+  // ── Storage Buckets ───────────────────────────────────────────
+  static const String avatarsBucket   = 'avatars';
+  static const String postsBucket     = 'posts';
+  static const String drawingsBucket  = 'drawings';
+
+  // ── 로컬/개발 환경 URL (env.json 또는 --dart-define) ──────────
   static const String _envUrl = String.fromEnvironment('SUPABASE_URL');
   static const String _envAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 

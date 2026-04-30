@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/error/failures.dart';
+import '../../domain/usecases/send_password_reset_email_use_case.dart';
 import '../../domain/value_objects/email.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_error_dialog.dart';
@@ -38,7 +39,9 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(sendPasswordResetEmailUseCaseProvider).call(email);
+      await ref.read(sendPasswordResetEmailUseCaseProvider).call(
+            SendPasswordResetEmailParams(email),
+          );
 
       // Supabase는 이메일 존재 여부와 무관하게 성공을 반환한다 (유저 열거 방지).
       // 항상 동일한 안내 메시지를 표시한다.

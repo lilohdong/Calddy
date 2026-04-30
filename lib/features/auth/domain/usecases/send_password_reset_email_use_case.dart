@@ -1,9 +1,17 @@
+import '../../../../core/usecase/usecase.dart';
 import '../repositories/auth_repository.dart';
 
-class SendPasswordResetEmailUseCase {
-  final AuthRepository _repository;
+class SendPasswordResetEmailParams {
+  final String email;
+  const SendPasswordResetEmailParams(this.email);
+}
 
+class SendPasswordResetEmailUseCase
+    implements UseCase<void, SendPasswordResetEmailParams> {
+  final AuthRepository _repository;
   SendPasswordResetEmailUseCase(this._repository);
 
-  Future<void> call(String email) => _repository.sendPasswordResetEmail(email);
+  @override
+  Future<void> call(SendPasswordResetEmailParams params) =>
+      _repository.sendPasswordResetEmail(params.email);
 }

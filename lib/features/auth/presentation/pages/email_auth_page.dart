@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/error/failures.dart';
-import '../../../../core/router/app_router.dart';
+import '../../../../core/router/app_routes.dart';
+import '../../domain/usecases/sign_in_with_email_use_case.dart';
+import '../../domain/usecases/sign_up_with_email_use_case.dart';
 import '../../domain/value_objects/email.dart';
 import '../../domain/value_objects/password.dart';
 import '../providers/auth_providers.dart';
@@ -58,7 +60,7 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
       if (_isSignUp) {
         await ref
             .read(signUpWithEmailUseCaseProvider)
-            .call(email: email, password: password);
+            .call(SignUpWithEmailParams(email: email, password: password));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('회원가입 완료! 이메일을 확인하거나 바로 로그인해보세요.')),
@@ -67,7 +69,7 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
       } else {
         await ref
             .read(signInWithEmailUseCaseProvider)
-            .call(email: email, password: password);
+            .call(SignInWithEmailParams(email: email, password: password));
       }
     } on AuthFailure catch (e) {
       if (mounted) await AuthErrorDialog.show(context, e);

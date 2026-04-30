@@ -1,10 +1,11 @@
-import '../entities/app_user.dart';
+import '../../../../core/usecase/usecase.dart';
+import '../entities/user_entity.dart';
 import '../repositories/auth_repository.dart';
 
-class GetCurrentUserUseCase {
+class GetCurrentUserUseCase implements UseCase<UserEntity?, NoParams> {
   final AuthRepository _repository;
-
   GetCurrentUserUseCase(this._repository);
 
-  Future<AppUser?> call() => _repository.getCurrentUser();
+  @override
+  Future<UserEntity?> call(NoParams params) => _repository.getCurrentUser();
 }

@@ -1,4 +1,4 @@
-import '../entities/app_user.dart';
+import '../entities/user_entity.dart';
 
 /// 인증 기능을 담당하는 리포지토리 인터페이스
 abstract class AuthRepository {
@@ -6,19 +6,19 @@ abstract class AuthRepository {
   Future<void> signInWithGoogle();
 
   /// 이메일/비밀번호를 이용한 회원가입
-  Future<AppUser?> signUpWithEmail({
+  Future<UserEntity?> signUpWithEmail({
     required String email,
     required String password,
   });
 
   /// 이메일/비밀번호를 이용한 로그인
-  Future<AppUser?> signInWithEmail({
+  Future<UserEntity?> signInWithEmail({
     required String email,
     required String password,
   });
 
   /// 현재 로그인된 사용자 정보 조회
-  Future<AppUser?> getCurrentUser();
+  Future<UserEntity?> getCurrentUser();
 
   /// 닉네임 저장 및 온보딩 완료 처리
   Future<void> completeOnboarding({required String nickname});
@@ -29,6 +29,9 @@ abstract class AuthRepository {
   /// 로그아웃
   Future<void> signOut();
 
+  /// 계정 삭제 (회원 탈퇴)
+  Future<void> deleteAccount();
+
   /// 세션 상태 변화 감지 스트림
-  Stream<AppUser?> get authStateChanges;
+  Stream<UserEntity?> get authStateChanges;
 }
