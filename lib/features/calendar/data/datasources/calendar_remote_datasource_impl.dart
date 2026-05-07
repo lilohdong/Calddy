@@ -12,12 +12,17 @@ class CalendarRemoteDataSourceImpl implements CalendarRemoteDataSource {
   @override
   Future<List<EventModel>> getEventsByDateRange(
       DateTime start, DateTime end) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw const AuthException('session_expired');
+
+    // 범위와 겹치는 이벤트: start_at < rangeEnd AND end_at > rangeStart
+    // (start_at 기준 단순 필터 시 다중일 이벤트가 누락됨)
     final rows = await _client
         .from(SupabaseConstants.events)
         .select()
-        .eq('user_id', _client.auth.currentUser!.id)
-        .gte('start_at', start.toIso8601String())
-        .lte('start_at', end.toIso8601String())
+        .eq('user_id', userId)
+        .lt('start_at', end.toIso8601String())
+        .gt('end_at', start.toIso8601String())
         .order('start_at');
     return rows.map((r) => EventModel.fromJson(r)).toList();
   }
@@ -36,7 +41,7 @@ class CalendarRemoteDataSourceImpl implements CalendarRemoteDataSource {
   Future<EventModel> updateEvent(EventModel event) async {
     final row = await _client
         .from(SupabaseConstants.events)
-        .update(event.toJson())
+        .update(event.toJsonForUpdate())
         .eq('id', event.id)
         .select()
         .single();

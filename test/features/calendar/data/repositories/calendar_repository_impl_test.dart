@@ -56,7 +56,7 @@ void main() {
   group('getCalendarByWeek', () {
     test('주 시작~종료 범위로 getEventsByDateRange를 호출한다', () async {
       final weekStart = DateTime(2026, 5, 4);
-      final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59));
+      final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
       when(() => mockDataSource.getEventsByDateRange(weekStart, weekEnd))
           .thenAnswer((_) async => []);
 

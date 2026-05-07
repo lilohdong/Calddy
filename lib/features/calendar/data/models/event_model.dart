@@ -75,4 +75,11 @@ class EventModel extends EventEntity {
         'appointment_id': appointmentId,
         'visibility': visibility.name,
       };
+
+  // UPDATE payload: user_id 제외 (RLS가 소유권 검증, 클라이언트 변경 불가)
+  Map<String, dynamic> toJsonForUpdate() {
+    final map = toJson();
+    map.remove('user_id');
+    return map;
+  }
 }
