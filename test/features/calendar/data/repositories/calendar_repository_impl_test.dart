@@ -129,4 +129,123 @@ void main() {
       verify(() => mockDataSource.completeEvent('event-1')).called(1);
     });
   });
+
+  group('getCalendarByMonth — eventType 필터', () {
+    test('habit 이벤트는 habits 리스트로 분리된다', () async {
+      final habitModel = EventModel(
+        id: 'habit-1',
+        userId: 'user-1',
+        title: '매일 운동',
+        startAt: DateTime(2026, 5, 7, 7),
+        endAt: DateTime(2026, 5, 7, 8),
+        color: '#00FF00',
+        isDday: false,
+        status: EventStatus.pending,
+        visibility: EventVisibility.public,
+        createdAt: DateTime(2026, 5, 1),
+        eventType: EventType.habit,
+        recurrenceType: RecurrenceType.daily,
+      );
+      final start = DateTime(2026, 5, 1);
+      final end = DateTime(2026, 5, 31, 23, 59, 59);
+      when(() => mockDataSource.getEventsByDateRange(start, end))
+          .thenAnswer((_) async => [_dummyModel(), habitModel]);
+
+      final result = await repository.getCalendarByMonth(2026, 5);
+
+      expect(result.events.length, 1);
+      expect(result.habits.length, 1);
+      expect(result.habits.first.id, 'habit-1');
+      expect(result.ranges, isEmpty);
+    });
+  });
+
+  group('createHabitInstances', () {
+    test('daily 3일치 habit → DataSource.createEvent 1회 + createEvents 1회',
+        () async {
+      final template = EventModel(
+        id: '',
+        userId: 'user-1',
+        title: '운동',
+        startAt: DateTime(2026, 5, 1, 7),
+        endAt: DateTime(2026, 5, 1, 8),
+        color: '#00FF00',
+        isDday: false,
+        status: EventStatus.pending,
+        visibility: EventVisibility.public,
+        createdAt: DateTime(2026, 5, 1),
+        eventType: EventType.habit,
+        recurrenceType: RecurrenceType.daily,
+        recurrenceEndDate: DateTime(2026, 5, 3),
+      );
+      final parent = _dummyModel(id: 'parent-1');
+      final children = [_dummyModel(id: 'child-1'), _dummyModel(id: 'child-2')];
+
+      when(() => mockDataSource.createEvent(any()))
+          .thenAnswer((_) async => parent);
+      when(() => mockDataSource.createEvents(any()))
+          .thenAnswer((_) async => children);
+
+      final result = await repository.createHabitInstances(template);
+
+      expect(result.length, 3);
+      verify(() => mockDataSource.createEvent(any())).called(1);
+      verify(() => mockDataSource.createEvents(any())).called(1);
+    });
+  });
+
+  group('updateRecurringEvent — thisOnly', () {
+    test('thisAndFuture=false이면 updateEvent 1회만 호출한다', () async {
+      final event = _dummyModel();
+      when(() => mockDataSource.updateEvent(any()))
+          .thenAnswer((_) async => event);
+
+      final result = await repository.updateRecurringEvent(
+        event: event,
+        thisAndFuture: false,
+      );
+
+      expect(result.length, 1);
+      verify(() => mockDataSource.updateEvent(any())).called(1);
+      verifyNever(() => mockDataSource.deleteRecurringFrom(any(), any()));
+    });
+  });
+
+  group('updateRecurringEvent — thisAndFuture', () {
+    test('thisAndFuture=true이면 deleteRecurringFrom + createEvent + createEvents 호출',
+        () async {
+      final event = EventModel(
+        id: 'event-2',
+        userId: 'user-1',
+        title: '운동',
+        startAt: DateTime(2026, 5, 7, 7),
+        endAt: DateTime(2026, 5, 7, 8),
+        color: '#00FF00',
+        isDday: false,
+        status: EventStatus.pending,
+        visibility: EventVisibility.public,
+        createdAt: DateTime(2026, 5, 1),
+        eventType: EventType.habit,
+        recurrenceType: RecurrenceType.daily,
+        recurrenceEndDate: DateTime(2026, 5, 8),
+        parentEventId: 'parent-1',
+      );
+      when(() => mockDataSource.deleteRecurringFrom(any(), any()))
+          .thenAnswer((_) async {});
+      when(() => mockDataSource.createEvent(any()))
+          .thenAnswer((_) async => _dummyModel(id: 'new-parent'));
+      when(() => mockDataSource.createEvents(any()))
+          .thenAnswer((_) async => [_dummyModel(id: 'new-child')]);
+
+      final result = await repository.updateRecurringEvent(
+        event: event,
+        thisAndFuture: true,
+      );
+
+      expect(result.isNotEmpty, true);
+      verify(() => mockDataSource.deleteRecurringFrom('parent-1', event.startAt))
+          .called(1);
+      verify(() => mockDataSource.createEvent(any())).called(1);
+    });
+  });
 }
