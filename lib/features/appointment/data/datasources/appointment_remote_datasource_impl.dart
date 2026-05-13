@@ -96,10 +96,17 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
     _uid;
     // 해당 약속의 모든 invites를 cancelled로 일괄 업데이트
     // 트리거(trg_invite_cancelled)가 각 invitee의 복제 이벤트 삭제 처리
-    await _client
+    final rows = await _client
         .from(SupabaseConstants.appointmentInvites)
         .update({'status': 'cancelled'})
-        .eq('appointment_id', appointmentId);
+        .eq('appointment_id', appointmentId)
+        .select();
+    if (rows.isEmpty) {
+      throw const PostgrestException(
+        message: 'appointment not found or not authorized',
+        code: 'PGRST116',
+      );
+    }
   }
 
   @override

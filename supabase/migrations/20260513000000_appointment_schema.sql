@@ -217,6 +217,14 @@ as $$
 declare
   v_appointment_id uuid;
 begin
+  -- p_event_id가 호출자 소유인지 검증
+  if not exists (
+    select 1 from public.events
+    where id = p_event_id and user_id = auth.uid()
+  ) then
+    raise exception 'event not found or not owned by caller';
+  end if;
+
   insert into public.appointments (event_id, creator_id, suggested_place)
   values (p_event_id, auth.uid(), p_suggested_place)
   returning id into v_appointment_id;
