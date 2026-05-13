@@ -22,51 +22,19 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
     required List<String> inviteeIds,
     String? suggestedPlace,
   }) async {
-    final uid = _uid;
+    _uid; // 세션 확인 (RPC 내부에서도 auth.uid() 사용)
 
-    // 1. appointments INSERT
-    final apptRow = await _client
-        .from(SupabaseConstants.appointments)
-        .insert({
-          'event_id': eventId,
-          'creator_id': uid,
-          'suggested_place': suggestedPlace,
-        })
-        .select()
-        .single();
-    final appointmentId = apptRow['id'] as String;
+    // 단일 트랜잭션 RPC: appointments INSERT + invites batch INSERT + events UPDATE
+    final appointmentId = await _client.rpc(
+      'create_appointment_with_invites',
+      params: {
+        'p_event_id': eventId,
+        'p_invitee_ids': inviteeIds,
+        'p_suggested_place': suggestedPlace,
+      },
+    ) as String;
 
-    // 2. invites batch INSERT
-    final inviteRows = await _client
-        .from(SupabaseConstants.appointmentInvites)
-        .insert(
-          inviteeIds
-              .map((id) => {
-                    'appointment_id': appointmentId,
-                    'invitee_id': id,
-                    'status': 'pending',
-                  })
-              .toList(),
-        )
-        .select();
-
-    // 3. creator 이벤트에 appointment_id 연결
-    await _client
-        .from(SupabaseConstants.events)
-        .update({'appointment_id': appointmentId})
-        .eq('id', eventId)
-        .eq('user_id', uid);
-
-    final invites =
-        inviteRows.map((r) => InviteModel.fromJson(r)).toList();
-    return AppointmentModel(
-      id: appointmentId,
-      eventId: apptRow['event_id'] as String,
-      creatorId: apptRow['creator_id'] as String,
-      suggestedPlace: apptRow['suggested_place'] as String?,
-      invites: invites,
-      createdAt: DateTime.parse(apptRow['created_at'] as String),
-    );
+    return getAppointment(appointmentId);
   }
 
   @override
@@ -85,7 +53,7 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
     final uid = _uid;
     final rows = await _client
         .from(SupabaseConstants.appointmentInvites)
-        .select('*, appointments(*)')
+        .select()
         .eq('invitee_id', uid)
         .eq('status', 'pending');
     return rows.map((r) => InviteModel.fromJson(r)).toList();
@@ -94,19 +62,33 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
   @override
   Future<void> acceptInvite(String inviteId) async {
     _uid;
-    await _client
+    final rows = await _client
         .from(SupabaseConstants.appointmentInvites)
         .update({'status': 'accepted'})
-        .eq('id', inviteId);
+        .eq('id', inviteId)
+        .select();
+    if (rows.isEmpty) {
+      throw const PostgrestException(
+        message: 'invite not found or not authorized',
+        code: 'PGRST116',
+      );
+    }
   }
 
   @override
   Future<void> rejectInvite(String inviteId) async {
     _uid;
-    await _client
+    final rows = await _client
         .from(SupabaseConstants.appointmentInvites)
         .update({'status': 'rejected'})
-        .eq('id', inviteId);
+        .eq('id', inviteId)
+        .select();
+    if (rows.isEmpty) {
+      throw const PostgrestException(
+        message: 'invite not found or not authorized',
+        code: 'PGRST116',
+      );
+    }
   }
 
   @override

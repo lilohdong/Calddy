@@ -57,6 +57,7 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
     } on AuthException {
       throw const AppointmentSessionExpiredFailure();
     } on PostgrestException catch (e) {
+      if (e.code == 'PGRST116') throw const AppointmentNotFoundFailure();
       throw AppointmentDatabaseFailure(e.message);
     } catch (_) {
       throw const AppointmentUnknownFailure();

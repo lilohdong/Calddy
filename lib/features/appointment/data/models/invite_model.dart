@@ -24,4 +24,10 @@ class InviteModel extends InviteEntity {
         status: e.status,
         updatedAt: e.updatedAt,
       );
+
+  Map<String, dynamic> toJson() => {
+        'appointment_id': appointmentId,
+        'invitee_id': inviteeId,
+        'status': status.name,
+      };
 }
