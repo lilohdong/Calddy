@@ -154,6 +154,8 @@ class CalendarRepositoryImpl implements CalendarRepository {
       throw const CalendarSessionExpiredFailure();
     } on PostgrestException catch (e) {
       throw CalendarDatabaseFailure(e.message);
+    } on CalendarFailure {
+      rethrow;
     } catch (_) {
       throw const CalendarUnknownFailure();
     }
