@@ -39,6 +39,9 @@ class CalendarRepositoryImpl implements CalendarRepository {
   @override
   Future<List<EventEntity>> createHabitInstances(EventEntity template) =>
       _guard(() async {
+        if (template.recurrenceType == null) {
+          throw const CalendarDatabaseFailure('habit 템플릿에 recurrenceType이 없습니다.');
+        }
         final endDate = template.recurrenceEndDate ??
             DateTime(template.startAt.year + 1, template.startAt.month,
                 template.startAt.day);

@@ -5,6 +5,7 @@ import 'package:calddy/features/calendar/data/datasources/drawing_remote_datasou
 import 'package:calddy/features/calendar/data/repositories/calendar_repository_impl.dart';
 import 'package:calddy/features/calendar/data/repositories/drawing_repository_impl.dart';
 import 'package:calddy/features/calendar/domain/entities/calendar_data.dart';
+import 'package:calddy/features/calendar/domain/entities/drawing_entity.dart';
 import 'package:calddy/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:calddy/features/calendar/domain/repositories/drawing_repository.dart';
 import 'package:calddy/features/calendar/domain/usecases/complete_event_usecase.dart';
@@ -92,7 +93,7 @@ final getDrawingUseCaseProvider = Provider((ref) =>
 final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
 
 final drawingByDateProvider =
-    FutureProvider.autoDispose.family<dynamic, DateTime>((ref, date) {
+    FutureProvider.autoDispose.family<DrawingEntity?, DateTime>((ref, date) {
   final useCase = ref.watch(getDrawingUseCaseProvider);
   return useCase(GetDrawingParams(date: date));
 });

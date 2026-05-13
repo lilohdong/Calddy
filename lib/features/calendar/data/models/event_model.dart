@@ -102,7 +102,11 @@ class EventModel extends EventEntity {
         'event_type': eventType.name,
         'recurrence_type': recurrenceType?.name,
         'recurrence_days': recurrenceDays,
-        'recurrence_end_date': recurrenceEndDate?.toIso8601String(),
+        'recurrence_end_date': recurrenceEndDate == null
+            ? null
+            : '${recurrenceEndDate!.year.toString().padLeft(4, '0')}-'
+                '${recurrenceEndDate!.month.toString().padLeft(2, '0')}-'
+                '${recurrenceEndDate!.day.toString().padLeft(2, '0')}',
         'parent_event_id': parentEventId,
       };
 
