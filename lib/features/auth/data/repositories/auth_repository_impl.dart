@@ -18,6 +18,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await _remoteDataSource.signInWithGoogle();
     } on AuthException catch (e) {
       throw _mapAuthException(e);
+    } catch (_) {
+      throw const UnknownAuthFailure();
     }
   }
 
@@ -57,10 +59,18 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> completeOnboarding({required String nickname}) async {
+  Future<void> completeOnboarding({
+    required String nickname,
+    required DateTime termsAgreedAt,
+    required String termsVersion,
+  }) async {
     // 1단계: 프로필 업데이트 — 실패 시 온보딩 전체를 실패로 처리
     try {
-      await _remoteDataSource.completeOnboarding(nickname: nickname);
+      await _remoteDataSource.completeOnboarding(
+        nickname: nickname,
+        termsAgreedAt: termsAgreedAt,
+        termsVersion: termsVersion,
+      );
     } on AuthException catch (e) {
       throw _mapAuthException(e);
     } catch (e) {
@@ -84,6 +94,28 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> sendOtp(String email) async {
+    try {
+      await _remoteDataSource.sendOtp(email);
+    } on AuthException catch (e) {
+      throw _mapAuthException(e);
+    } catch (_) {
+      throw const UnknownAuthFailure();
+    }
+  }
+
+  @override
+  Future<void> verifyOtp({required String email, required String token}) async {
+    try {
+      await _remoteDataSource.verifyOtp(email: email, token: token);
+    } on AuthException catch (e) {
+      throw _mapOtpException(e);
+    } catch (_) {
+      throw const UnknownAuthFailure();
+    }
+  }
+
+  @override
   Future<void> sendPasswordResetEmail(String email) async {
     try {
       await _remoteDataSource.sendPasswordResetEmail(email);
@@ -96,7 +128,13 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> signOut() async {
-    await _remoteDataSource.signOut();
+    try {
+      await _remoteDataSource.signOut();
+    } on AuthException catch (e) {
+      throw _mapAuthException(e);
+    } catch (_) {
+      throw const UnknownAuthFailure();
+    }
   }
 
   @override
@@ -114,6 +152,25 @@ class AuthRepositoryImpl implements AuthRepository {
   Stream<UserEntity?> get authStateChanges => _remoteDataSource.onAuthStateChange;
 
   // ── Private helpers ───────────────────────────────────────────
+
+  /// OTP 검증 실패를 도메인 Failure로 변환.
+  AuthFailure _mapOtpException(AuthException e) {
+    final msg = e.message.toLowerCase();
+    if (msg.contains('expired') || msg.contains('otp_expired')) {
+      return const OtpExpiredFailure();
+    }
+    if (msg.contains('invalid') || msg.contains('otp_disabled') ||
+        msg.contains('token not found') || msg.contains('incorrect')) {
+      return const InvalidOtpFailure();
+    }
+    if (_statusCode429(e)) return const TooManyRequestsFailure();
+    return const UnknownAuthFailure();
+  }
+
+  bool _statusCode429(AuthException e) =>
+      e.statusCode == '429' ||
+      e.message.toLowerCase().contains('too many requests') ||
+      e.message.toLowerCase().contains('rate limit');
 
   /// Supabase [AuthException]을 도메인 [AuthFailure]로 변환.
   /// statusCode를 1순위, message 패턴을 2순위로 사용하여

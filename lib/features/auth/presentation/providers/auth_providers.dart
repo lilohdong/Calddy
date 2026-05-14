@@ -12,7 +12,9 @@ import '../../domain/usecases/send_password_reset_email_use_case.dart';
 import '../../domain/usecases/sign_in_with_email_use_case.dart';
 import '../../domain/usecases/sign_in_with_google_use_case.dart';
 import '../../domain/usecases/sign_out_use_case.dart';
+import '../../domain/usecases/send_otp_use_case.dart';
 import '../../domain/usecases/sign_up_with_email_use_case.dart';
+import '../../domain/usecases/verify_otp_use_case.dart';
 
 /// 인증 데이터 소스 프로바이더
 final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>((ref) {
@@ -72,4 +74,12 @@ final sendPasswordResetEmailUseCaseProvider =
 
 final deleteAccountUseCaseProvider = Provider<DeleteAccountUseCase>((ref) {
   return DeleteAccountUseCase(ref.watch(authRepositoryProvider));
+});
+
+final sendOtpUseCaseProvider = Provider<SendOtpUseCase>((ref) {
+  return SendOtpUseCase(ref.watch(authRepositoryProvider));
+});
+
+final verifyOtpUseCaseProvider = Provider<VerifyOtpUseCase>((ref) {
+  return VerifyOtpUseCase(ref.watch(authRepositoryProvider));
 });

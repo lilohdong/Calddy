@@ -104,15 +104,34 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<void> completeOnboarding({required String nickname}) async {
-    // RLS가 현재 인증된 유저의 프로필만 업데이트할 수 있도록 보장하므로
-    // currentUser.id로 대상을 특정한다.
+  Future<void> completeOnboarding({
+    required String nickname,
+    required DateTime termsAgreedAt,
+    required String termsVersion,
+  }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) throw const AuthException('session_expired');
     await _supabase.from('profiles').update({
       'nickname': nickname,
       'is_onboarded': true,
+      'terms_agreed_at': termsAgreedAt.toUtc().toIso8601String(),
+      'terms_version': termsVersion,
     }).eq('id', userId);
+  }
+
+  @override
+  Future<void> sendOtp(String email) async {
+    // 회원가입 인증 메일 재발송. signUp() 호출 시 첫 발송은 Supabase가 자동 처리.
+    await _supabase.auth.resend(type: OtpType.signup, email: email);
+  }
+
+  @override
+  Future<void> verifyOtp({required String email, required String token}) async {
+    await _supabase.auth.verifyOTP(
+      email: email,
+      token: token,
+      type: OtpType.signup,
+    );
   }
 
   @override

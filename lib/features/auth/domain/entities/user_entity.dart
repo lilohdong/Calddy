@@ -11,7 +11,9 @@ class UserEntity {
   final bool pushEnabled;
   final String? fcmToken;
   final DateTime? createdAt;
-  final bool isOnboarded;    // 온보딩 완료 여부 (라우팅 분기용)
+  final bool isOnboarded;          // 온보딩 완료 여부 (라우팅 분기용)
+  final DateTime? termsAgreedAt;   // 이용약관 동의 일시
+  final String? termsVersion;      // 동의한 약관 버전
 
   const UserEntity({
     required this.id,
@@ -23,5 +25,7 @@ class UserEntity {
     this.fcmToken,
     this.createdAt,
     this.isOnboarded = false,
+    this.termsAgreedAt,
+    this.termsVersion,
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/error/failures.dart';
 
 /// Auth 오류 발생 시 표시하는 모달 다이얼로그
@@ -54,6 +55,14 @@ class AuthErrorDialog extends StatelessWidget {
           icon: Icons.badge_outlined,
           title: '닉네임 형식 오류',
         ),
+      InvalidOtpFailure() => const _DialogContent(
+          icon: Icons.sms_failed_outlined,
+          title: '인증번호 오류',
+        ),
+      OtpExpiredFailure() => const _DialogContent(
+          icon: Icons.timer_off_outlined,
+          title: '인증번호 만료',
+        ),
       UnknownAuthFailure() => const _DialogContent(
           icon: Icons.error_outline,
           title: '오류 발생',
@@ -96,7 +105,7 @@ class AuthErrorDialog extends StatelessWidget {
       actionsAlignment: MainAxisAlignment.center,
       actions: [
         ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
           child: const Text('확인'),
         ),
       ],
