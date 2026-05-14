@@ -18,6 +18,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await _remoteDataSource.signInWithGoogle();
     } on AuthException catch (e) {
       throw _mapAuthException(e);
+    } catch (_) {
+      throw const UnknownAuthFailure();
     }
   }
 
@@ -158,7 +160,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return const OtpExpiredFailure();
     }
     if (msg.contains('invalid') || msg.contains('otp_disabled') ||
-        msg.contains('token') || msg.contains('incorrect')) {
+        msg.contains('token not found') || msg.contains('incorrect')) {
       return const InvalidOtpFailure();
     }
     if (_statusCode429(e)) return const TooManyRequestsFailure();
