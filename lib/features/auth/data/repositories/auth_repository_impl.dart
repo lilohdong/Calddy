@@ -126,7 +126,13 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> signOut() async {
-    await _remoteDataSource.signOut();
+    try {
+      await _remoteDataSource.signOut();
+    } on AuthException catch (e) {
+      throw _mapAuthException(e);
+    } catch (_) {
+      throw const UnknownAuthFailure();
+    }
   }
 
   @override
@@ -155,11 +161,11 @@ class AuthRepositoryImpl implements AuthRepository {
         msg.contains('token') || msg.contains('incorrect')) {
       return const InvalidOtpFailure();
     }
-    if (statusCode429(e)) return const TooManyRequestsFailure();
+    if (_statusCode429(e)) return const TooManyRequestsFailure();
     return const UnknownAuthFailure();
   }
 
-  bool statusCode429(AuthException e) =>
+  bool _statusCode429(AuthException e) =>
       e.statusCode == '429' ||
       e.message.toLowerCase().contains('too many requests') ||
       e.message.toLowerCase().contains('rate limit');

@@ -15,6 +15,7 @@ void main() {
   setUp(() {
     mockDataSource = MockAuthRemoteDataSource();
     repository = AuthRepositoryImpl(remoteDataSource: mockDataSource);
+    registerFallbackValue(DateTime(2024));
   });
 
   // ── getCurrentUser ────────────────────────────────────────────
@@ -36,6 +37,16 @@ void main() {
       await repository.signOut();
 
       verify(() => mockDataSource.signOut()).called(1);
+    });
+
+    test('AuthException 발생 시 AuthFailure로 변환하여 throw한다', () {
+      when(() => mockDataSource.signOut())
+          .thenThrow(const AuthException('session_expired'));
+
+      expect(
+        () => repository.signOut(),
+        throwsA(isA<AuthFailure>()),
+      );
     });
   });
 
@@ -116,14 +127,21 @@ void main() {
 
   // ── completeOnboarding ───────────────────────────────────────
   group('completeOnboarding', () {
+    final tNow = DateTime(2026, 5, 14);
+
     test('닉네임 중복 시 DuplicateNicknameFailure를 throw한다', () {
-      // PostgreSQL error code 23505 = unique_violation
       when(() => mockDataSource.completeOnboarding(
             nickname: any(named: 'nickname'),
+            termsAgreedAt: any(named: 'termsAgreedAt'),
+            termsVersion: any(named: 'termsVersion'),
           )).thenThrow(PostgrestException(message: 'duplicate key', code: '23505'));
 
       expect(
-        () => repository.completeOnboarding(nickname: 'taken'),
+        () => repository.completeOnboarding(
+          nickname: 'taken',
+          termsAgreedAt: tNow,
+          termsVersion: '1.0',
+        ),
         throwsA(isA<DuplicateNicknameFailure>()),
       );
     });
@@ -131,14 +149,81 @@ void main() {
     test('refreshSession 실패 시에도 완료로 처리한다 (throw 없음)', () async {
       when(() => mockDataSource.completeOnboarding(
             nickname: any(named: 'nickname'),
+            termsAgreedAt: any(named: 'termsAgreedAt'),
+            termsVersion: any(named: 'termsVersion'),
           )).thenAnswer((_) async {});
       when(() => mockDataSource.refreshSession())
           .thenThrow(const AuthException('session expired'));
 
-      // throw하지 않아야 한다
       await expectLater(
-        repository.completeOnboarding(nickname: 'nick'),
+        repository.completeOnboarding(
+          nickname: 'nick',
+          termsAgreedAt: tNow,
+          termsVersion: '1.0',
+        ),
         completes,
+      );
+    });
+  });
+
+  // ── sendOtp ──────────────────────────────────────────────────
+  group('sendOtp', () {
+    test('성공 시 예외 없이 완료된다', () async {
+      when(() => mockDataSource.sendOtp(any()))
+          .thenAnswer((_) async {});
+
+      await expectLater(
+        repository.sendOtp('user@test.com'),
+        completes,
+      );
+    });
+
+    test('요청 초과 시 TooManyRequestsFailure를 throw한다', () {
+      when(() => mockDataSource.sendOtp(any()))
+          .thenThrow(const AuthException('too many requests', statusCode: '429'));
+
+      expect(
+        () => repository.sendOtp('user@test.com'),
+        throwsA(isA<TooManyRequestsFailure>()),
+      );
+    });
+  });
+
+  // ── verifyOtp ─────────────────────────────────────────────────
+  group('verifyOtp', () {
+    test('성공 시 예외 없이 완료된다', () async {
+      when(() => mockDataSource.verifyOtp(
+            email: any(named: 'email'),
+            token: any(named: 'token'),
+          )).thenAnswer((_) async {});
+
+      await expectLater(
+        repository.verifyOtp(email: 'user@test.com', token: '123456'),
+        completes,
+      );
+    });
+
+    test('만료된 토큰 시 OtpExpiredFailure를 throw한다', () {
+      when(() => mockDataSource.verifyOtp(
+            email: any(named: 'email'),
+            token: any(named: 'token'),
+          )).thenThrow(const AuthException('otp_expired'));
+
+      expect(
+        () => repository.verifyOtp(email: 'user@test.com', token: '000000'),
+        throwsA(isA<OtpExpiredFailure>()),
+      );
+    });
+
+    test('잘못된 토큰 시 InvalidOtpFailure를 throw한다', () {
+      when(() => mockDataSource.verifyOtp(
+            email: any(named: 'email'),
+            token: any(named: 'token'),
+          )).thenThrow(const AuthException('invalid token'));
+
+      expect(
+        () => repository.verifyOtp(email: 'user@test.com', token: '999999'),
+        throwsA(isA<InvalidOtpFailure>()),
       );
     });
   });

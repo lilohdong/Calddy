@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/error/failures.dart';
 
 /// Auth 오류 발생 시 표시하는 모달 다이얼로그
@@ -104,7 +105,7 @@ class AuthErrorDialog extends StatelessWidget {
       actionsAlignment: MainAxisAlignment.center,
       actions: [
         ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
           child: const Text('확인'),
         ),
       ],

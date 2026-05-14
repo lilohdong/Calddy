@@ -19,6 +19,7 @@ class UserModel extends UserEntity {
 
   /// Supabase의 User 객체와 profiles 테이블 데이터를 결합하여 모델 생성
   factory UserModel.fromSupabase(User user, Map<String, dynamic>? profile) {
+    assert(user.email != null, 'user.email은 이메일/Google 인증에서 null이 될 수 없습니다');
     return UserModel(
       id: user.id,
       email: user.email ?? '',
