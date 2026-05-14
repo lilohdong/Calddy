@@ -37,7 +37,7 @@ abstract class AuthRemoteDataSource {
     required String termsVersion,
   });
 
-  /// OTP 인증번호 발송 (signInWithOtp 플로우)
+  /// 회원가입 인증 이메일 재발송 (signUp 시 첫 발송은 Supabase 자동 처리)
   Future<void> sendOtp(String email);
 
   /// OTP 인증번호 검증

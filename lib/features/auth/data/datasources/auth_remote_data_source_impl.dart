@@ -121,7 +121,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<void> sendOtp(String email) async {
-    await _supabase.auth.signInWithOtp(email: email);
+    // 회원가입 인증 메일 재발송. signUp() 호출 시 첫 발송은 Supabase가 자동 처리.
+    await _supabase.auth.resend(type: OtpType.signup, email: email);
   }
 
   @override
@@ -129,7 +130,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     await _supabase.auth.verifyOTP(
       email: email,
       token: token,
-      type: OtpType.email,
+      type: OtpType.signup,
     );
   }
 
