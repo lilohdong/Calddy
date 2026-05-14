@@ -69,6 +69,16 @@ final class NicknameValidationFailure extends AuthFailure {
   const NicknameValidationFailure(super.message);
 }
 
+/// OTP 코드 불일치 또는 형식 오류
+final class InvalidOtpFailure extends AuthFailure {
+  const InvalidOtpFailure() : super('인증번호가 올바르지 않습니다.');
+}
+
+/// OTP 코드 만료
+final class OtpExpiredFailure extends AuthFailure {
+  const OtpExpiredFailure() : super('인증번호가 만료되었습니다.\n다시 발송해주세요.');
+}
+
 /// 분류되지 않은 서버 오류
 final class UnknownAuthFailure extends AuthFailure {
   const UnknownAuthFailure() : super('알 수 없는 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.');

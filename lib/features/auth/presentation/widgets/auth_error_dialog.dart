@@ -54,6 +54,14 @@ class AuthErrorDialog extends StatelessWidget {
           icon: Icons.badge_outlined,
           title: '닉네임 형식 오류',
         ),
+      InvalidOtpFailure() => const _DialogContent(
+          icon: Icons.sms_failed_outlined,
+          title: '인증번호 오류',
+        ),
+      OtpExpiredFailure() => const _DialogContent(
+          icon: Icons.timer_off_outlined,
+          title: '인증번호 만료',
+        ),
       UnknownAuthFailure() => const _DialogContent(
           icon: Icons.error_outline,
           title: '오류 발생',

@@ -13,6 +13,8 @@ class UserModel extends UserEntity {
     super.fcmToken,
     super.createdAt,
     super.isOnboarded,
+    super.termsAgreedAt,
+    super.termsVersion,
   });
 
   /// Supabase의 User 객체와 profiles 테이블 데이터를 결합하여 모델 생성
@@ -33,6 +35,10 @@ class UserModel extends UserEntity {
           ? DateTime.tryParse(profile!['created_at'] as String)
           : null,
       isOnboarded: profile?['is_onboarded'] as bool? ?? false,
+      termsAgreedAt: profile?['terms_agreed_at'] != null
+          ? DateTime.tryParse(profile!['terms_agreed_at'] as String)
+          : null,
+      termsVersion: profile?['terms_version'] as String?,
     );
   }
 }

@@ -50,8 +50,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     setState(() => _isLoading = true);
 
     try {
+      // TODO(frontend): 이용약관 동의 UI 구현 후 실제 값 전달
       await ref.read(completeOnboardingUseCaseProvider).call(
-            CompleteOnboardingParams(nickname: nickname),
+            CompleteOnboardingParams(
+              nickname: nickname,
+              termsAgreedAt: DateTime.now().toUtc(),
+              termsVersion: '1.0',
+            ),
           );
     } on AuthFailure catch (e) {
       if (mounted) await AuthErrorDialog.show(context, e);

@@ -3,7 +3,14 @@ import '../repositories/auth_repository.dart';
 
 class CompleteOnboardingParams {
   final String nickname;
-  const CompleteOnboardingParams({required this.nickname});
+  final DateTime termsAgreedAt;
+  final String termsVersion;
+
+  const CompleteOnboardingParams({
+    required this.nickname,
+    required this.termsAgreedAt,
+    required this.termsVersion,
+  });
 }
 
 class CompleteOnboardingUseCase
@@ -13,5 +20,9 @@ class CompleteOnboardingUseCase
 
   @override
   Future<void> call(CompleteOnboardingParams params) =>
-      _repository.completeOnboarding(nickname: params.nickname);
+      _repository.completeOnboarding(
+        nickname: params.nickname,
+        termsAgreedAt: params.termsAgreedAt,
+        termsVersion: params.termsVersion,
+      );
 }

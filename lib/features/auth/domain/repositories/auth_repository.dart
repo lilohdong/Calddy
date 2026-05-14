@@ -20,8 +20,18 @@ abstract class AuthRepository {
   /// 현재 로그인된 사용자 정보 조회
   Future<UserEntity?> getCurrentUser();
 
-  /// 닉네임 저장 및 온보딩 완료 처리
-  Future<void> completeOnboarding({required String nickname});
+  /// 닉네임 저장 및 온보딩 완료 처리 (이용약관 동의 포함)
+  Future<void> completeOnboarding({
+    required String nickname,
+    required DateTime termsAgreedAt,
+    required String termsVersion,
+  });
+
+  /// OTP 인증번호 발송 (이메일 인증 플로우)
+  Future<void> sendOtp(String email);
+
+  /// OTP 인증번호 검증
+  Future<void> verifyOtp({required String email, required String token});
 
   /// 비밀번호 재설정 이메일 전송
   Future<void> sendPasswordResetEmail(String email);
