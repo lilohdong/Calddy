@@ -22,23 +22,15 @@ create index appointments_event_id_idx   on public.appointments (event_id);
 
 alter table public.appointments enable row level security;
 
--- creator 본인만 조회
-create policy "약속 조회: creator 또는 초대받은 사람"
-  on public.appointments for select using (
-    auth.uid() = creator_id
-    or exists (
-      select 1 from public.appointment_invites
-      where appointment_id = appointments.id
-        and invitee_id = auth.uid()
-    )
-  );
-
 create policy "약속 생성: 본인만"
   on public.appointments for insert with check (auth.uid() = creator_id);
 
 -- creator만 삭제 가능 (취소 시 cascade로 invites도 삭제)
 create policy "약속 삭제: creator만"
   on public.appointments for delete using (auth.uid() = creator_id);
+
+-- ※ "약속 조회: creator 또는 초대받은 사람" 정책은
+--    appointment_invites 테이블 생성 이후에 추가됨 (아래 참고)
 
 -- ── appointment_invites ───────────────────────────────────────────────────
 
@@ -55,6 +47,18 @@ create index appointment_invites_invitee_id_idx       on public.appointment_invi
 create index appointment_invites_appointment_id_idx   on public.appointment_invites (appointment_id);
 
 alter table public.appointment_invites enable row level security;
+
+-- appointment_invites 생성 후 appointments SELECT 정책 추가
+-- (정책 내 subquery가 appointment_invites를 참조하므로 테이블 먼저 생성 필요)
+create policy "약속 조회: creator 또는 초대받은 사람"
+  on public.appointments for select using (
+    auth.uid() = creator_id
+    or exists (
+      select 1 from public.appointment_invites
+      where appointment_id = appointments.id
+        and invitee_id = auth.uid()
+    )
+  );
 
 -- creator 또는 당사자 invitee 조회 가능
 create policy "초대 조회: creator 또는 invitee"
