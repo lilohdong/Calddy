@@ -54,6 +54,25 @@ class CalendarRemoteDataSourceImpl implements CalendarRemoteDataSource {
   }
 
   @override
+  Future<List<EventModel>> createEvents(List<EventModel> events) async {
+    if (events.isEmpty) return [];
+    final rows = await _client
+        .from(SupabaseConstants.events)
+        .insert(events.map((e) => e.toJson()).toList())
+        .select();
+    return rows.map((r) => EventModel.fromJson(r)).toList();
+  }
+
+  @override
+  Future<void> deleteRecurringFrom(String parentOrEventId, DateTime from) async {
+    await _client
+        .from(SupabaseConstants.events)
+        .delete()
+        .or('id.eq.$parentOrEventId,parent_event_id.eq.$parentOrEventId')
+        .gte('start_at', from.toIso8601String());
+  }
+
+  @override
   Future<EventModel> completeEvent(String eventId) async {
     final row = await _client
         .from(SupabaseConstants.events)

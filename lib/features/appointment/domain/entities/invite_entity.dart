@@ -1,4 +1,4 @@
-enum InviteStatus { pending, accepted, rejected }
+enum InviteStatus { pending, accepted, rejected, cancelled }
 
 class InviteEntity {
   final String id;
