@@ -16,6 +16,7 @@ import '../../domain/usecases/get_friends_use_case.dart';
 import '../../domain/usecases/get_incoming_requests_use_case.dart';
 import '../../domain/usecases/merge_calendars_use_case.dart';
 import '../../domain/usecases/reject_friend_request_use_case.dart';
+import '../../domain/usecases/suggest_appointment_use_case.dart';
 import '../../domain/usecases/search_users_use_case.dart';
 import '../../domain/usecases/send_friend_request_use_case.dart';
 
@@ -96,6 +97,10 @@ final getFriendCalendarUseCaseProvider =
 
 final mergeCalendarsUseCaseProvider = Provider<MergeCalendarsUseCase>((ref) {
   return MergeCalendarsUseCase(ref.watch(friendRepositoryProvider));
+});
+
+final suggestAppointmentUseCaseProvider = Provider<SuggestAppointmentUseCase>((ref) {
+  return SuggestAppointmentUseCase(ref.watch(friendRepositoryProvider));
 });
 
 // ── P2 State Providers (family) ───────────────────────────────────────────────
