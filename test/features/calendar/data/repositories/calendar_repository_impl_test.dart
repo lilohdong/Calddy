@@ -1,4 +1,3 @@
-import 'package:calddy/core/error/failures.dart';
 import 'package:calddy/features/calendar/data/datasources/calendar_remote_datasource.dart';
 import 'package:calddy/features/calendar/data/models/event_model.dart';
 import 'package:calddy/features/calendar/data/models/holiday_model.dart';
@@ -6,7 +5,6 @@ import 'package:calddy/features/calendar/data/repositories/calendar_repository_i
 import 'package:calddy/features/calendar/domain/entities/event_entity.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MockCalendarRemoteDataSource extends Mock
     implements CalendarRemoteDataSource {}
