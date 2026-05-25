@@ -148,7 +148,7 @@ Deno.serve(async (req: Request) => {
     withLocation.length;
 
   // ODsay 이동 시간 조회 (API 키 없으면 전부 null)
-  const odsayKey = Deno.env.get('ODSAY_API_KEY');
+  const odsayKey = Deno.env.get('ODSAY_API_KEY')?.trim();
 
   const participants = await Promise.all(
     profiles.map(async (p: { id: string; nickname: string; home_lat: number | null; home_lng: number | null }) => {

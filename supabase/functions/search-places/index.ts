@@ -61,7 +61,9 @@ Deno.serve(async (req: Request) => {
     return errorResponse('lat and lng are required');
   }
 
-  const apiKey = Deno.env.get('KAKAO_REST_API_KEY');
+  const apiKey = Deno.env.get('KAKAO_REST_API_KEY')
+    ?.replace(/[^\x20-\x7E]/g, '')  // ASCII 가시 문자만 허용 (BOM·개행·비표준 문자 제거)
+    .trim();
   if (!apiKey) {
     console.warn('[search-places] KAKAO_REST_API_KEY not set. Returning empty list.');
     return jsonResponse([]);
