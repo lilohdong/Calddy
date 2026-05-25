@@ -71,6 +71,7 @@ generated_main.dart
 # Environment Variables
 env.json
 supabase/.env
+supabase/functions/.env
 
 # MCP local config (contains DB credentials)
 .mcp.json
