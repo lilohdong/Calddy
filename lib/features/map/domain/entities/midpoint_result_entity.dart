@@ -8,6 +8,16 @@ class ParticipantTravel {
     required this.nickname,
     this.travelMinutes,
   });
+
+  @override
+  bool operator ==(Object other) =>
+      other is ParticipantTravel &&
+      other.userId == userId &&
+      other.nickname == nickname &&
+      other.travelMinutes == travelMinutes;
+
+  @override
+  int get hashCode => Object.hash(userId, nickname, travelMinutes);
 }
 
 class MidpointResultEntity {
@@ -28,8 +38,22 @@ class MidpointResultEntity {
       other is MidpointResultEntity &&
       other.lat == lat &&
       other.lng == lng &&
-      other.iterationCount == iterationCount;
+      other.iterationCount == iterationCount &&
+      _participantsEqual(other.participants);
+
+  bool _participantsEqual(List<ParticipantTravel> other) {
+    if (other.length != participants.length) return false;
+    for (var i = 0; i < participants.length; i++) {
+      if (participants[i] != other[i]) return false;
+    }
+    return true;
+  }
 
   @override
-  int get hashCode => Object.hash(lat, lng, iterationCount);
+  int get hashCode => Object.hash(
+        lat,
+        lng,
+        iterationCount,
+        Object.hashAll(participants),
+      );
 }

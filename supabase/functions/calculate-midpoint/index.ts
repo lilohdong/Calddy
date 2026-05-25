@@ -164,8 +164,6 @@ Deno.serve(async (req: Request) => {
   // 참여자 2명 이상 + API 키 있을 때만 최적화 실행 (1명이면 표준편차 계산 불가)
   if (odsayKey && withLocation.length >= 2) {
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      iterationCount = i + 1;
-
       const results = await Promise.all(
         withLocation.map(async (p) => ({
           ...p,
@@ -187,6 +185,7 @@ Deno.serve(async (req: Request) => {
         .filter((r) => r.travelMinutes != null)
         .map((r) => r.travelMinutes as number);
 
+      // 수렴 판단: 이동 없이 종료하면 iterationCount를 증가시키지 않음
       if (validTimes.length < 2 || calcStdDev(validTimes) <= STD_DEV_THRESHOLD) break;
 
       // 가장 오래 걸리는 참여자 방향으로 중간 지점 이동
@@ -196,6 +195,7 @@ Deno.serve(async (req: Request) => {
 
       midLat += (slowest.home_lat! - midLat) * STEP_FRACTIONS[i];
       midLng += (slowest.home_lng! - midLng) * STEP_FRACTIONS[i];
+      iterationCount = i + 1; // 실제 이동이 발생한 횟수만 기록
     }
   }
 

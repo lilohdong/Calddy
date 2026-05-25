@@ -28,15 +28,15 @@ final _recommendPlaceUseCaseProvider = Provider(
 final midpointProvider = FutureProvider.autoDispose
     .family<MidpointResultEntity, String>((ref, appointmentId) {
   return ref
-      .watch(_calculateMidpointUseCaseProvider)
+      .read(_calculateMidpointUseCaseProvider)
       .call(CalculateMidpointParams(appointmentId: appointmentId));
 });
 
 /// MidpointResultEntity → RecommendationResultEntity
-/// MidpointResultEntity에 ==·hashCode가 구현돼 있어야 family 키로 동작
+/// MidpointResultEntity에 participants까지 포함한 ==·hashCode 구현 필요
 final recommendPlaceProvider = FutureProvider.autoDispose
     .family<RecommendationResultEntity, MidpointResultEntity>((ref, midpoint) {
   return ref
-      .watch(_recommendPlaceUseCaseProvider)
+      .read(_recommendPlaceUseCaseProvider)
       .call(RecommendPlaceParams(midpoint: midpoint));
 });
