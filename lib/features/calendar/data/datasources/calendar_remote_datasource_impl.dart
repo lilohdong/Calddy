@@ -2,6 +2,7 @@ import 'package:calddy/core/constants/supabase_constants.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/event_model.dart';
+import '../models/holiday_model.dart';
 import 'calendar_remote_datasource.dart';
 
 class CalendarRemoteDataSourceImpl implements CalendarRemoteDataSource {
@@ -25,6 +26,22 @@ class CalendarRemoteDataSourceImpl implements CalendarRemoteDataSource {
         .gt('end_at', start.toIso8601String())
         .order('start_at');
     return rows.map((r) => EventModel.fromJson(r)).toList();
+  }
+
+  @override
+  Future<List<HolidayModel>> getHolidaysByRange(
+      DateTime start, DateTime end) async {
+    final startStr =
+        '${start.year.toString().padLeft(4, '0')}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
+    final endStr =
+        '${end.year.toString().padLeft(4, '0')}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}';
+    final rows = await _client
+        .from(SupabaseConstants.holidays)
+        .select('date, name')
+        .gte('date', startStr)
+        .lte('date', endStr)
+        .order('date');
+    return rows.map((r) => HolidayModel.fromJson(r)).toList();
   }
 
   @override

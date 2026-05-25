@@ -1,7 +1,9 @@
 import '../models/event_model.dart';
+import '../models/holiday_model.dart';
 
 abstract interface class CalendarRemoteDataSource {
   Future<List<EventModel>> getEventsByDateRange(DateTime start, DateTime end);
+  Future<List<HolidayModel>> getHolidaysByRange(DateTime start, DateTime end);
   Future<EventModel> createEvent(EventModel event);
   // 반복 인스턴스 batch INSERT
   Future<List<EventModel>> createEvents(List<EventModel> events);
