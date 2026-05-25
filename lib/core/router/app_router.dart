@@ -10,6 +10,8 @@ import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../features/calendar/presentation/pages/calendar_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
+import '../../features/feed/presentation/pages/post_create_page.dart';
+import '../../features/feed/presentation/pages/post_detail_page.dart';
 import '../../features/friend/presentation/pages/friend_calendar_page.dart';
 import '../../features/friend/presentation/pages/friends_page.dart';
 import '../../features/friend/presentation/pages/merge_calendar_page.dart';
@@ -147,12 +149,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'post/create',
-                builder: (_, _) => const _PlaceholderPage(title: '게시물 작성'),
+                builder: (_, _) => const PostCreatePage(),
               ),
               GoRoute(
                 path: 'post/:postId',
-                builder: (_, s) => _PlaceholderPage(
-                  title: '게시물 (${s.pathParameters['postId']})',
+                builder: (_, s) => PostDetailPage(
+                  postId: s.pathParameters['postId']!,
                 ),
               ),
             ],

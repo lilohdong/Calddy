@@ -694,9 +694,25 @@ create table public.post_likes (
 
 alter table public.post_likes enable row level security;
 
-create policy "post_likes: 본인 좋아요 조회"
+create policy "post_likes: 조회 가능한 게시글의 좋아요 조회"
   on public.post_likes for select to authenticated
-  using (user_id = auth.uid());
+  using (
+    exists (
+      select 1 from public.posts p
+      where p.id = post_likes.post_id
+        and (
+          p.user_id = auth.uid()
+          or (
+            p.visibility = 'public'
+            and exists (
+              select 1 from public.friends f
+              where f.user_id   = auth.uid()
+                and f.friend_id = p.user_id
+            )
+          )
+        )
+    )
+  );
 
 create policy "post_likes: 본인이 좋아요 누르기"
   on public.post_likes for insert to authenticated
