@@ -21,9 +21,14 @@ class MapRemoteDataSourceImpl implements MapRemoteDataSource {
         details: response.data?.toString(),
       );
     }
-    return MidpointResultModel.fromJson(
-      response.data as Map<String, dynamic>,
-    );
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw FunctionException(
+        status: response.status,
+        details: 'Unexpected response type: ${data?.runtimeType}',
+      );
+    }
+    return MidpointResultModel.fromJson(data);
   }
 
   @override
@@ -50,8 +55,14 @@ class MapRemoteDataSourceImpl implements MapRemoteDataSource {
         details: response.data?.toString(),
       );
     }
-    final list = response.data as List<dynamic>;
-    return list
+    final data = response.data;
+    if (data is! List<dynamic>) {
+      throw FunctionException(
+        status: response.status,
+        details: 'Unexpected response type: ${data?.runtimeType}',
+      );
+    }
+    return data
         .map((e) => PlaceModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }

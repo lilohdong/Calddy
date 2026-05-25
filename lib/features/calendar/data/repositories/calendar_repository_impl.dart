@@ -22,7 +22,9 @@ class CalendarRepositoryImpl implements CalendarRepository {
         final end = DateTime(year, month + 1, 0, 23, 59, 59);
         final (events, holidays) = await (
           _dataSource.getEventsByDateRange(start, end),
-          _dataSource.getHolidaysByRange(start, end),
+          _dataSource
+              .getHolidaysByRange(start, end)
+              .onError((_, __) => const <HolidayModel>[]),
         ).wait;
         return _toCalendarData(events, holidays);
       });
@@ -34,7 +36,9 @@ class CalendarRepositoryImpl implements CalendarRepository {
             .add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
         final (events, holidays) = await (
           _dataSource.getEventsByDateRange(weekStart, end),
-          _dataSource.getHolidaysByRange(weekStart, end),
+          _dataSource
+              .getHolidaysByRange(weekStart, end)
+              .onError((_, __) => const <HolidayModel>[]),
         ).wait;
         return _toCalendarData(events, holidays);
       });
