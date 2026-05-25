@@ -1,11 +1,9 @@
 import '../entities/calendar_data.dart';
 import '../entities/event_entity.dart';
-import '../entities/holiday_entity.dart';
 
 abstract interface class CalendarRepository {
   Future<CalendarData> getCalendarByMonth(int year, int month);
   Future<CalendarData> getCalendarByWeek(DateTime weekStart);
-  Future<List<HolidayEntity>> getHolidaysByRange(DateTime start, DateTime end);
   Future<EventEntity> createEvent(EventEntity event);
   Future<List<EventEntity>> createHabitInstances(EventEntity template);
   Future<EventEntity> updateEvent(EventEntity event);

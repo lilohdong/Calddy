@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/calendar_data.dart';
 import '../../domain/entities/event_entity.dart';
-import '../../domain/entities/holiday_entity.dart';
 import '../../domain/repositories/calendar_repository.dart';
 import '../datasources/calendar_remote_datasource.dart';
 import '../models/event_model.dart';
@@ -21,10 +20,10 @@ class CalendarRepositoryImpl implements CalendarRepository {
         final start = DateTime(year, month, 1);
         // day 0 of month+1 = last day of current month
         final end = DateTime(year, month + 1, 0, 23, 59, 59);
-        final eventsFuture = _dataSource.getEventsByDateRange(start, end);
-        final holidaysFuture = _dataSource.getHolidaysByRange(start, end);
-        final events = await eventsFuture;
-        final holidays = await holidaysFuture;
+        final (events, holidays) = await (
+          _dataSource.getEventsByDateRange(start, end),
+          _dataSource.getHolidaysByRange(start, end),
+        ).wait;
         return _toCalendarData(events, holidays);
       });
 
@@ -33,10 +32,10 @@ class CalendarRepositoryImpl implements CalendarRepository {
       _guard(() async {
         final end = weekStart
             .add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-        final eventsFuture = _dataSource.getEventsByDateRange(weekStart, end);
-        final holidaysFuture = _dataSource.getHolidaysByRange(weekStart, end);
-        final events = await eventsFuture;
-        final holidays = await holidaysFuture;
+        final (events, holidays) = await (
+          _dataSource.getEventsByDateRange(weekStart, end),
+          _dataSource.getHolidaysByRange(weekStart, end),
+        ).wait;
         return _toCalendarData(events, holidays);
       });
 
@@ -110,14 +109,6 @@ class CalendarRepositoryImpl implements CalendarRepository {
         return createHabitInstances(
           event.copyWith(parentEventId: null),
         );
-      });
-
-  @override
-  Future<List<HolidayEntity>> getHolidaysByRange(
-          DateTime start, DateTime end) =>
-      _guard(() async {
-        final models = await _dataSource.getHolidaysByRange(start, end);
-        return models.map((m) => m.toEntity()).toList();
       });
 
   @override

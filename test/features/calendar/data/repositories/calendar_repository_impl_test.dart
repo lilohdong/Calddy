@@ -97,31 +97,4 @@ void main() {
     });
   });
 
-  group('getHolidaysByRange', () {
-    test('DataSource에서 반환된 HolidayModel을 HolidayEntity로 변환해 반환한다', () async {
-      final start = DateTime(2026, 5, 1);
-      final end = DateTime(2026, 5, 31, 23, 59, 59);
-      when(() => mockDataSource.getHolidaysByRange(start, end))
-          .thenAnswer((_) async => [_holiday]);
-
-      final result = await repository.getHolidaysByRange(start, end);
-
-      expect(result.length, 1);
-      expect(result.first.date, DateTime(2026, 5, 5));
-      expect(result.first.name, '어린이날');
-      verify(() => mockDataSource.getHolidaysByRange(start, end)).called(1);
-    });
-
-    test('DataSource가 PostgrestException을 던지면 CalendarDatabaseFailure로 변환한다', () async {
-      final start = DateTime(2026, 5, 1);
-      final end = DateTime(2026, 5, 31, 23, 59, 59);
-      when(() => mockDataSource.getHolidaysByRange(start, end))
-          .thenThrow(PostgrestException(message: 'db error'));
-
-      expect(
-        () => repository.getHolidaysByRange(start, end),
-        throwsA(isA<CalendarDatabaseFailure>()),
-      );
-    });
-  });
 }
