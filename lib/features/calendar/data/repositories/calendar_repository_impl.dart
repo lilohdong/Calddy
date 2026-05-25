@@ -24,7 +24,7 @@ class CalendarRepositoryImpl implements CalendarRepository {
           _dataSource.getEventsByDateRange(start, end),
           _dataSource
               .getHolidaysByRange(start, end)
-              .onError((_, __) => const <HolidayModel>[]),
+              .onError((_, _) => const <HolidayModel>[]),
         ).wait;
         return _toCalendarData(events, holidays);
       });
@@ -38,7 +38,7 @@ class CalendarRepositoryImpl implements CalendarRepository {
           _dataSource.getEventsByDateRange(weekStart, end),
           _dataSource
               .getHolidaysByRange(weekStart, end)
-              .onError((_, __) => const <HolidayModel>[]),
+              .onError((_, _) => const <HolidayModel>[]),
         ).wait;
         return _toCalendarData(events, holidays);
       });
