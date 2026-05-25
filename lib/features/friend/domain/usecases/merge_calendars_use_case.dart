@@ -3,11 +3,11 @@ import '../entities/free_slot_entity.dart';
 import '../repositories/friend_repository.dart';
 
 class MergeCalendarsParams {
-  final String friendId;
+  final List<String> friendIds;
   final DateTime from;
   final DateTime to;
   const MergeCalendarsParams({
-    required this.friendId,
+    required this.friendIds,
     required this.from,
     required this.to,
   });
@@ -21,7 +21,7 @@ class MergeCalendarsUseCase
   @override
   Future<List<FreeSlotEntity>> call(MergeCalendarsParams params) =>
       _repository.mergeCalendars(
-        friendId: params.friendId,
+        friendIds: params.friendIds,
         from: params.from,
         to: params.to,
       );

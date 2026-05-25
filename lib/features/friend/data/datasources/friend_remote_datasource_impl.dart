@@ -142,7 +142,7 @@ class FriendRemoteDataSourceImpl implements FriendRemoteDataSource {
   }
 
   @override
-  Future<List<FriendEntity>> getFriends() async {
+  Future<List<FriendEntity>> getFriends(FriendSortType sortType) async {
     final currentUserId = _currentUserId;
 
     final results = await _supabase
@@ -151,13 +151,34 @@ class FriendRemoteDataSourceImpl implements FriendRemoteDataSource {
         .eq('user_id', currentUserId);
 
     final list = List<Map<String, dynamic>>.from(results as List);
-    list.sort((a, b) {
-      final aN = ((a['profiles'] as Map?)?['nickname'] as String?) ?? '';
-      final bN = ((b['profiles'] as Map?)?['nickname'] as String?) ?? '';
-      return aN.compareTo(bN);
-    });
 
-    return list.map((json) => FriendModel.fromJson(json)).toList();
+    if (sortType == FriendSortType.alphabetical) {
+      list.sort((a, b) {
+        final aN = ((a['profiles'] as Map?)?['nickname'] as String?) ?? '';
+        final bN = ((b['profiles'] as Map?)?['nickname'] as String?) ?? '';
+        return aN.compareTo(bN);
+      });
+      return list.map((json) => FriendModel.fromJson(json)).toList();
+    }
+
+    // freeTimeOverlap: 오늘~+30일 기준 빈 슬롯 수 내림차순
+    final now = DateTime.now();
+    final to = now.add(const Duration(days: 30));
+    final slotCounts = await Future.wait(
+      list.map((friend) async {
+        final friendId = (friend['profiles'] as Map)['id'] as String;
+        try {
+          final slots = await getFreeSlots(friendId: friendId, from: now, to: to);
+          return slots.length;
+        } catch (_) {
+          return 0;
+        }
+      }),
+    );
+
+    final indexed = List.generate(list.length, (i) => i);
+    indexed.sort((a, b) => slotCounts[b].compareTo(slotCounts[a]));
+    return indexed.map((i) => FriendModel.fromJson(list[i])).toList();
   }
 
   @override
@@ -225,8 +246,6 @@ class FriendRemoteDataSourceImpl implements FriendRemoteDataSource {
     required DateTime from,
     required DateTime to,
   }) async {
-    // Supabase RPC: free_slots(p_user1_id, p_user2_id, p_from, p_to)
-    // 반환 컬럼: slot_start timestamptz, slot_end timestamptz
     final result = await _supabase.rpc('free_slots', params: {
       'p_user1_id': _currentUserId,
       'p_user2_id': friendId,
@@ -238,4 +257,5 @@ class FriendRemoteDataSourceImpl implements FriendRemoteDataSource {
         .map((json) => FreeSlotModel.fromJson(json as Map<String, dynamic>))
         .toList();
   }
+
 }
