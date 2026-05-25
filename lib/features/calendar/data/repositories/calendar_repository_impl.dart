@@ -6,6 +6,7 @@ import '../../domain/entities/event_entity.dart';
 import '../../domain/repositories/calendar_repository.dart';
 import '../datasources/calendar_remote_datasource.dart';
 import '../models/event_model.dart';
+import '../models/holiday_model.dart';
 
 class CalendarRepositoryImpl implements CalendarRepository {
   final CalendarRemoteDataSource _dataSource;
@@ -19,8 +20,13 @@ class CalendarRepositoryImpl implements CalendarRepository {
         final start = DateTime(year, month, 1);
         // day 0 of month+1 = last day of current month
         final end = DateTime(year, month + 1, 0, 23, 59, 59);
-        final all = await _dataSource.getEventsByDateRange(start, end);
-        return _toCalendarData(all);
+        final (events, holidays) = await (
+          _dataSource.getEventsByDateRange(start, end),
+          _dataSource
+              .getHolidaysByRange(start, end)
+              .onError((_, _) => const <HolidayModel>[]),
+        ).wait;
+        return _toCalendarData(events, holidays);
       });
 
   @override
@@ -28,8 +34,13 @@ class CalendarRepositoryImpl implements CalendarRepository {
       _guard(() async {
         final end = weekStart
             .add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-        final all = await _dataSource.getEventsByDateRange(weekStart, end);
-        return _toCalendarData(all);
+        final (events, holidays) = await (
+          _dataSource.getEventsByDateRange(weekStart, end),
+          _dataSource
+              .getHolidaysByRange(weekStart, end)
+              .onError((_, _) => const <HolidayModel>[]),
+        ).wait;
+        return _toCalendarData(events, holidays);
       });
 
   @override
@@ -114,10 +125,13 @@ class CalendarRepositoryImpl implements CalendarRepository {
 
   // ── Private helpers ────────────────────────────────────────────────────
 
-  CalendarData _toCalendarData(List<EventModel> all) => CalendarData(
+  CalendarData _toCalendarData(
+          List<EventModel> all, List<HolidayModel> holidays) =>
+      CalendarData(
         events: all.where((e) => e.eventType == EventType.event).toList(),
         habits: all.where((e) => e.eventType == EventType.habit).toList(),
         ranges: all.where((e) => e.eventType == EventType.range).toList(),
+        holidays: holidays.map((h) => h.toEntity()).toList(),
       );
 
   /// 반복 규칙에 맞는 날짜 목록 생성

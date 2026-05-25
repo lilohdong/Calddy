@@ -158,3 +158,27 @@ final class DrawingUnknownFailure extends DrawingFailure {
   const DrawingUnknownFailure()
       : super('알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
 }
+
+// ── Map Failures ───────────────────────────────────────────────────────────
+
+sealed class MapFailure implements Exception {
+  final String message;
+  const MapFailure(this.message);
+}
+
+/// 약속을 찾을 수 없거나 참여자가 없음
+final class MapAppointmentNotFoundFailure extends MapFailure {
+  const MapAppointmentNotFoundFailure()
+      : super('약속 정보를 찾을 수 없습니다.');
+}
+
+/// Edge Function 서버 오류 (Google Maps / ODsay API 포함)
+final class MapServerFailure extends MapFailure {
+  const MapServerFailure(super.message);
+}
+
+/// 분류되지 않은 오류
+final class MapUnknownFailure extends MapFailure {
+  const MapUnknownFailure()
+      : super('알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+}
