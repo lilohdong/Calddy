@@ -97,6 +97,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       await ref.read(acceptFriendRequestUseCaseProvider)
           .call(AcceptFriendRequestParams(requestId: requestId));
       ref..invalidate(incomingRequestsProvider)..invalidate(friendsProvider);
+      if (_query.isNotEmpty) await _search(_query);
     } on FriendFailure catch (e) {
       _showError(e.message);
     } catch (_) {

@@ -19,6 +19,8 @@ class FriendRepositoryImpl implements FriendRepository {
       return await _remoteDataSource.searchUsers(query);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -31,6 +33,8 @@ class FriendRepositoryImpl implements FriendRepository {
     } on PostgrestException catch (e) {
       if (e.code == '23505') throw const FriendRequestAlreadySentFailure();
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -42,6 +46,8 @@ class FriendRepositoryImpl implements FriendRepository {
       await _remoteDataSource.cancelFriendRequest(requestId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -53,6 +59,8 @@ class FriendRepositoryImpl implements FriendRepository {
       await _remoteDataSource.acceptFriendRequest(requestId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -64,6 +72,8 @@ class FriendRepositoryImpl implements FriendRepository {
       await _remoteDataSource.rejectFriendRequest(requestId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -75,6 +85,8 @@ class FriendRepositoryImpl implements FriendRepository {
       return await _remoteDataSource.getFriends(sortType);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -86,6 +98,8 @@ class FriendRepositoryImpl implements FriendRepository {
       await _remoteDataSource.deleteFriend(friendId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -97,6 +111,8 @@ class FriendRepositoryImpl implements FriendRepository {
       return await _remoteDataSource.getIncomingRequests();
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -118,6 +134,8 @@ class FriendRepositoryImpl implements FriendRepository {
       );
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -144,6 +162,8 @@ class FriendRepositoryImpl implements FriendRepository {
       return intersection;
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -177,6 +197,8 @@ class FriendRepositoryImpl implements FriendRepository {
       );
       return slots.isNotEmpty ? slots.first : null;
     } on FriendFailure {
+      rethrow;
+    } on AuthException {
       rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();

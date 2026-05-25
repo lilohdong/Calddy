@@ -166,7 +166,9 @@ class FriendRemoteDataSourceImpl implements FriendRemoteDataSource {
     final to = now.add(const Duration(days: 30));
     final slotCounts = await Future.wait(
       list.map((friend) async {
-        final friendId = (friend['profiles'] as Map)['id'] as String;
+        final profileMap = friend['profiles'] as Map?;
+        if (profileMap == null) return 0;
+        final friendId = profileMap['id'] as String;
         try {
           final slots = await getFreeSlots(friendId: friendId, from: now, to: to);
           return slots.length;
