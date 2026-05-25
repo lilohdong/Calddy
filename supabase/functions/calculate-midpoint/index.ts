@@ -1,21 +1,25 @@
 // calculate-midpoint Edge Function
 //
-// 약속(appointment)의 모든 참여자 좌표 평균으로 중간 지점을 계산하고,
-// ODsay API로 각 참여자의 대중교통 이동 시간을 조회합니다.
+// Step 1: 참여자 좌표 평균으로 초기 중간 지점 계산
+// Step 2: ODsay 대중교통 시간 기반 반복 최적화 (최대 3회, 표준편차 5분 이내 수렴 시 조기 종료)
 //
-// ⚠️  ODSAY_API_KEY 환경변수가 설정되어 있어야 이동 시간이 계산됩니다.
-//     미설정 시 travelMinutes = null 반환 (앱은 정상 동작).
+// ⚠️  ODSAY_API_KEY 환경변수가 설정되어 있어야 Step 2가 동작합니다.
+//     미설정 시 Step 1 결과만 반환합니다 (iterationCount = 0).
 //
 // Request  : POST { appointment_id: string }
-// Response : { lat: number, lng: number, participants: ParticipantTravel[] }
+// Response : { lat, lng, iterationCount, participants: ParticipantTravel[] }
 //
-// ParticipantTravel: { userId: string, nickname: string, travelMinutes: number | null }
+// ParticipantTravel: { userId, nickname, travelMinutes: number | null }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 
+const MAX_ITERATIONS = 3;
+const STD_DEV_THRESHOLD = 5; // 분
+const STEP_FRACTIONS = [0.2, 0.1, 0.067];
+
 interface OdsayPath {
-  info: { totalTime: number }; // 총 이동 시간(분)
+  info: { totalTime: number };
 }
 
 interface OdsayResponse {
@@ -23,8 +27,20 @@ interface OdsayResponse {
   error?: { code: number; message: string };
 }
 
-// ODsay 대중교통 경로 탐색 — 이동 시간(분) 반환
-// 실패 시 null 반환 (선택적 기능이므로 전체 응답을 막지 않음)
+interface ProfileRow {
+  id: string;
+  nickname: string;
+  home_lat: number | null;
+  home_lng: number | null;
+}
+
+function calcStdDev(values: number[]): number {
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance =
+    values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+  return Math.sqrt(variance);
+}
+
 async function fetchTravelMinutes(
   apiKey: string,
   startLat: number,
@@ -34,10 +50,10 @@ async function fetchTravelMinutes(
 ): Promise<number | null> {
   try {
     const params = new URLSearchParams({
-      SX: String(startLng), // 출발 경도
-      SY: String(startLat), // 출발 위도
-      EX: String(endLng),   // 도착 경도
-      EY: String(endLat),   // 도착 위도
+      SX: String(startLng),
+      SY: String(startLat),
+      EX: String(endLng),
+      EY: String(endLat),
       apiKey,
     });
 
@@ -47,10 +63,8 @@ async function fetchTravelMinutes(
     if (!res.ok) return null;
 
     const data = await res.json() as OdsayResponse;
-
     if (data.error || !data.result?.path?.length) return null;
 
-    // 가장 짧은 경로의 이동 시간 반환
     return data.result.path[0].info.totalTime;
   } catch {
     return null;
@@ -88,7 +102,6 @@ Deno.serve(async (req: Request) => {
   const { appointment_id } = body;
   if (!appointment_id) return errorResponse('appointment_id is required');
 
-  // 약속 + 초대 목록 조회
   const { data: appointment, error: apptError } = await adminClient
     .from('appointments')
     .select('creator_id, appointment_invites(invitee_id, status)')
@@ -99,14 +112,14 @@ Deno.serve(async (req: Request) => {
     return errorResponse('Appointment not found', 404);
   }
 
-  // 호출자 권한 확인
-  const inviteeIds = (appointment.appointment_invites as { invitee_id: string; status: string }[])
-    .map((i) => i.invitee_id);
+  const inviteeIds = (
+    appointment.appointment_invites as { invitee_id: string; status: string }[]
+  ).map((i) => i.invitee_id);
+
   const isParticipant =
     appointment.creator_id === user.id || inviteeIds.includes(user.id);
   if (!isParticipant) return errorResponse('Forbidden', 403);
 
-  // 참여자 ID 목록 (creator + accepted/pending invitees)
   const activeInviteeIds = (
     appointment.appointment_invites as { invitee_id: string; status: string }[]
   )
@@ -117,7 +130,6 @@ Deno.serve(async (req: Request) => {
     new Set([appointment.creator_id, ...activeInviteeIds]),
   );
 
-  // 참여자 프로필 조회
   const { data: profiles, error: profileError } = await adminClient
     .from('profiles')
     .select('id, nickname, home_lat, home_lng')
@@ -127,10 +139,8 @@ Deno.serve(async (req: Request) => {
     return errorResponse('Failed to fetch participant profiles', 500);
   }
 
-  // 좌표가 있는 참여자만으로 중간 지점 계산
-  const withLocation = profiles.filter(
-    (p: { home_lat: number | null; home_lng: number | null }) =>
-      p.home_lat != null && p.home_lng != null,
+  const withLocation = (profiles as ProfileRow[]).filter(
+    (p) => p.home_lat != null && p.home_lng != null,
   );
 
   if (withLocation.length === 0) {
@@ -140,33 +150,60 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const midLat =
-    withLocation.reduce((sum: number, p: { home_lat: number }) => sum + p.home_lat, 0) /
-    withLocation.length;
-  const midLng =
-    withLocation.reduce((sum: number, p: { home_lng: number }) => sum + p.home_lng, 0) /
-    withLocation.length;
+  // Step 1: 좌표 평균
+  let midLat =
+    withLocation.reduce((sum, p) => sum + p.home_lat!, 0) / withLocation.length;
+  let midLng =
+    withLocation.reduce((sum, p) => sum + p.home_lng!, 0) / withLocation.length;
 
-  // ODsay 이동 시간 조회 (API 키 없으면 전부 null)
+  // Step 2: ODsay 반복 최적화
   const odsayKey = Deno.env.get('ODSAY_API_KEY')?.trim();
+  let iterationCount = 0;
+  const finalTravelTimes = new Map<string, number | null>();
 
-  const participants = await Promise.all(
-    profiles.map(async (p: { id: string; nickname: string; home_lat: number | null; home_lng: number | null }) => {
-      let travelMinutes: number | null = null;
+  // 참여자 2명 이상 + API 키 있을 때만 최적화 실행 (1명이면 표준편차 계산 불가)
+  if (odsayKey && withLocation.length >= 2) {
+    for (let i = 0; i < MAX_ITERATIONS; i++) {
+      iterationCount = i + 1;
 
-      if (odsayKey && p.home_lat != null && p.home_lng != null) {
-        travelMinutes = await fetchTravelMinutes(
-          odsayKey,
-          p.home_lat,
-          p.home_lng,
-          midLat,
-          midLng,
-        );
+      const results = await Promise.all(
+        withLocation.map(async (p) => ({
+          ...p,
+          travelMinutes: await fetchTravelMinutes(
+            odsayKey,
+            p.home_lat!,
+            p.home_lng!,
+            midLat,
+            midLng,
+          ),
+        })),
+      );
+
+      for (const r of results) {
+        finalTravelTimes.set(r.id, r.travelMinutes);
       }
 
-      return { userId: p.id, nickname: p.nickname, travelMinutes };
-    }),
-  );
+      const validTimes = results
+        .filter((r) => r.travelMinutes != null)
+        .map((r) => r.travelMinutes as number);
 
-  return jsonResponse({ lat: midLat, lng: midLng, participants });
+      if (validTimes.length < 2 || calcStdDev(validTimes) <= STD_DEV_THRESHOLD) break;
+
+      // 가장 오래 걸리는 참여자 방향으로 중간 지점 이동
+      const slowest = results
+        .filter((r) => r.travelMinutes != null)
+        .reduce((max, cur) => (cur.travelMinutes! > max.travelMinutes! ? cur : max));
+
+      midLat += (slowest.home_lat! - midLat) * STEP_FRACTIONS[i];
+      midLng += (slowest.home_lng! - midLng) * STEP_FRACTIONS[i];
+    }
+  }
+
+  const participants = (profiles as ProfileRow[]).map((p) => ({
+    userId: p.id,
+    nickname: p.nickname,
+    travelMinutes: finalTravelTimes.get(p.id) ?? null,
+  }));
+
+  return jsonResponse({ lat: midLat, lng: midLng, iterationCount, participants });
 });
