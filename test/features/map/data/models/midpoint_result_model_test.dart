@@ -20,5 +20,27 @@ void main() {
       expect(model.participants[0].travelMinutes, 24);
       expect(model.participants[1].travelMinutes, isNull);
     });
+
+    test('travelMinutes가 double(24.0)이어도 int로 변환된다', () {
+      final json = {
+        'lat': 37.5,
+        'lng': 127.0,
+        'participants': [
+          {'userId': 'u1', 'nickname': '동준', 'travelMinutes': 24.0},
+        ],
+      };
+
+      final model = MidpointResultModel.fromJson(json);
+
+      expect(model.participants[0].travelMinutes, 24);
+    });
+
+    test('participants 키가 없으면 빈 리스트로 파싱한다', () {
+      final json = {'lat': 37.5, 'lng': 127.0};
+
+      final model = MidpointResultModel.fromJson(json);
+
+      expect(model.participants, isEmpty);
+    });
   });
 }
