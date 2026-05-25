@@ -8,6 +8,6 @@ abstract interface class MapRemoteDataSource {
     required double lat,
     required double lng,
     String? keyword,
-    int radius,
+    int radius = 1000,
   });
 }

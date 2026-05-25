@@ -33,14 +33,16 @@ class MapRemoteDataSourceImpl implements MapRemoteDataSource {
     String? keyword,
     int radius = 1000,
   }) async {
+    final body = <String, dynamic>{
+      'lat': lat,
+      'lng': lng,
+      'radius': radius,
+    };
+    if (keyword != null) body['keyword'] = keyword;
+
     final response = await _supabase.functions.invoke(
       'search-places',
-      body: {
-        'lat': lat,
-        'lng': lng,
-        'keyword': ?keyword,
-        'radius': radius,
-      },
+      body: body,
     );
     if (response.status != 200) {
       throw FunctionException(
