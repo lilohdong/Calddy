@@ -2,7 +2,6 @@ import 'package:calddy/core/error/failures.dart';
 import 'package:calddy/features/calendar/data/datasources/drawing_remote_datasource.dart';
 import 'package:calddy/features/calendar/data/models/drawing_model.dart';
 import 'package:calddy/features/calendar/data/repositories/drawing_repository_impl.dart';
-import 'package:calddy/features/calendar/domain/entities/drawing_entity.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
