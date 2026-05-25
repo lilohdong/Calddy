@@ -1,7 +1,7 @@
 import 'package:calddy/core/error/failures.dart';
 import 'package:calddy/features/map/data/datasources/map_remote_datasource.dart';
 import 'package:calddy/features/map/data/models/midpoint_result_model.dart';
-import 'package:calddy/features/map/data/models/place_model.dart';
+import 'package:calddy/features/map/data/models/recommendation_result_model.dart';
 import 'package:calddy/features/map/data/repositories/map_repository_impl.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -9,20 +9,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MockMapRemoteDataSource extends Mock implements MapRemoteDataSource {}
 
-const _dummyMidpoint = MidpointResultModel(
+final _dummyMidpoint = MidpointResultModel(
   lat: 37.5,
   lng: 127.0,
-  participants: [
+  iterationCount: 1,
+  participants: const [
     ParticipantTravelModel(userId: 'u1', nickname: '동준', travelMinutes: 20),
   ],
 );
 
-const _dummyPlace = PlaceModel(
-  placeId: 'p1',
-  name: '스타벅스 강남점',
-  address: '서울시 강남구',
-  lat: 37.498,
-  lng: 127.027,
+const _dummyRecommendation = RecommendationResultModel(
+  recommendedKeyword: '강남역',
+  places: [],
 );
 
 void main() {
@@ -31,7 +29,7 @@ void main() {
 
   setUp(() {
     mockDataSource = MockMapRemoteDataSource();
-    repository = MapRepositoryImpl(remoteDataSource: mockDataSource);
+    repository = MapRepositoryImpl(mockDataSource);
   });
 
   group('calculateMidpoint', () {
@@ -42,13 +40,14 @@ void main() {
       final result = await repository.calculateMidpoint('appt-1');
 
       expect(result.lat, 37.5);
+      expect(result.iterationCount, 1);
       expect(result.participants.first.travelMinutes, 20);
       verify(() => mockDataSource.calculateMidpoint('appt-1')).called(1);
     });
 
     test('FunctionException(404) → MapAppointmentNotFoundFailure', () async {
       when(() => mockDataSource.calculateMidpoint('appt-1')).thenThrow(
-        FunctionException(status: 404, details: 'not found'),
+        const FunctionException(status: 404, details: 'not found'),
       );
 
       expect(
@@ -57,14 +56,25 @@ void main() {
       );
     });
 
-    test('FunctionException(500) → MapServerFailure', () async {
+    test('FunctionException(422) → NoLocationDataFailure', () async {
       when(() => mockDataSource.calculateMidpoint('appt-1')).thenThrow(
-        FunctionException(status: 500, details: 'internal error'),
+        const FunctionException(status: 422, details: 'no location'),
       );
 
       expect(
         () => repository.calculateMidpoint('appt-1'),
-        throwsA(isA<MapServerFailure>()),
+        throwsA(isA<NoLocationDataFailure>()),
+      );
+    });
+
+    test('FunctionException(500) → MapApiFailure', () async {
+      when(() => mockDataSource.calculateMidpoint('appt-1')).thenThrow(
+        const FunctionException(status: 500, details: 'internal error'),
+      );
+
+      expect(
+        () => repository.calculateMidpoint('appt-1'),
+        throwsA(isA<MapApiFailure>()),
       );
     });
 
@@ -79,36 +89,25 @@ void main() {
     });
   });
 
-  group('searchPlaces', () {
+  group('recommendPlace', () {
     test('DataSource 결과를 그대로 반환한다', () async {
-      when(() => mockDataSource.searchPlaces(
-            lat: 37.5,
-            lng: 127.0,
-            keyword: '카페',
-            radius: 1000,
-          )).thenAnswer((_) async => [_dummyPlace]);
+      when(() => mockDataSource.recommendPlace(_dummyMidpoint))
+          .thenAnswer((_) async => _dummyRecommendation);
 
-      final result = await repository.searchPlaces(
-        lat: 37.5,
-        lng: 127.0,
-        keyword: '카페',
-      );
+      final result = await repository.recommendPlace(_dummyMidpoint);
 
-      expect(result.length, 1);
-      expect(result.first.name, '스타벅스 강남점');
+      expect(result.recommendedKeyword, '강남역');
+      verify(() => mockDataSource.recommendPlace(_dummyMidpoint)).called(1);
     });
 
-    test('FunctionException(500) → MapServerFailure', () async {
-      when(() => mockDataSource.searchPlaces(
-            lat: any(named: 'lat'),
-            lng: any(named: 'lng'),
-            keyword: any(named: 'keyword'),
-            radius: any(named: 'radius'),
-          )).thenThrow(FunctionException(status: 500, details: 'api error'));
+    test('FunctionException(500) → MapApiFailure', () async {
+      when(() => mockDataSource.recommendPlace(any())).thenThrow(
+        const FunctionException(status: 500, details: 'api error'),
+      );
 
       expect(
-        () => repository.searchPlaces(lat: 37.5, lng: 127.0),
-        throwsA(isA<MapServerFailure>()),
+        () => repository.recommendPlace(_dummyMidpoint),
+        throwsA(isA<MapApiFailure>()),
       );
     });
   });

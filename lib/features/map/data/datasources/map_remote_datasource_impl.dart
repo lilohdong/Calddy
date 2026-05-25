@@ -1,69 +1,51 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../domain/entities/midpoint_result_entity.dart';
 import '../models/midpoint_result_model.dart';
-import '../models/place_model.dart';
+import '../models/recommendation_result_model.dart';
 import 'map_remote_datasource.dart';
 
 class MapRemoteDataSourceImpl implements MapRemoteDataSource {
-  final SupabaseClient _supabase;
-
-  MapRemoteDataSourceImpl(this._supabase);
+  final SupabaseClient _client;
+  const MapRemoteDataSourceImpl(this._client);
 
   @override
   Future<MidpointResultModel> calculateMidpoint(String appointmentId) async {
-    final response = await _supabase.functions.invoke(
+    final res = await _client.functions.invoke(
       'calculate-midpoint',
       body: {'appointment_id': appointmentId},
     );
-    if (response.status != 200) {
-      throw FunctionException(
-        status: response.status,
-        details: response.data?.toString(),
-      );
-    }
-    final data = response.data;
+    final data = res.data;
     if (data is! Map<String, dynamic>) {
-      throw FunctionException(
-        status: response.status,
-        details: 'Unexpected response type: ${data?.runtimeType}',
-      );
+      throw Exception('calculate-midpoint: unexpected response type — $data');
     }
     return MidpointResultModel.fromJson(data);
   }
 
   @override
-  Future<List<PlaceModel>> searchPlaces({
-    required double lat,
-    required double lng,
-    String? keyword,
-    int radius = 1000,
-  }) async {
-    final body = <String, dynamic>{
-      'lat': lat,
-      'lng': lng,
-      'radius': radius,
-    };
-    if (keyword != null) body['keyword'] = keyword;
-
-    final response = await _supabase.functions.invoke(
-      'search-places',
-      body: body,
+  Future<RecommendationResultModel> recommendPlace(
+    MidpointResultEntity midpoint,
+  ) async {
+    final res = await _client.functions.invoke(
+      'recommend-place',
+      body: {
+        'lat': midpoint.lat,
+        'lng': midpoint.lng,
+        'participants': midpoint.participants
+            .map(
+              (p) => {
+                'userId': p.userId,
+                'nickname': p.nickname,
+                'travelMinutes': p.travelMinutes,
+              },
+            )
+            .toList(),
+      },
     );
-    if (response.status != 200) {
-      throw FunctionException(
-        status: response.status,
-        details: response.data?.toString(),
-      );
+    final data = res.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('recommend-place: unexpected response type — $data');
     }
-    final data = response.data;
-    if (data is! List<dynamic>) {
-      throw FunctionException(
-        status: response.status,
-        details: 'Unexpected response type: ${data?.runtimeType}',
-      );
-    }
-    return data
-        .map((e) => PlaceModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return RecommendationResultModel.fromJson(data);
   }
 }

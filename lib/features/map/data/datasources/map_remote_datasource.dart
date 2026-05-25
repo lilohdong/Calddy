@@ -1,13 +1,8 @@
+import '../../domain/entities/midpoint_result_entity.dart';
 import '../models/midpoint_result_model.dart';
-import '../models/place_model.dart';
+import '../models/recommendation_result_model.dart';
 
 abstract interface class MapRemoteDataSource {
   Future<MidpointResultModel> calculateMidpoint(String appointmentId);
-
-  Future<List<PlaceModel>> searchPlaces({
-    required double lat,
-    required double lng,
-    String? keyword,
-    int radius = 1000,
-  });
+  Future<RecommendationResultModel> recommendPlace(MidpointResultEntity midpoint);
 }

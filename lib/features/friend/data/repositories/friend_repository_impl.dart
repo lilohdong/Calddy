@@ -19,6 +19,8 @@ class FriendRepositoryImpl implements FriendRepository {
       return await _remoteDataSource.searchUsers(query);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -31,6 +33,8 @@ class FriendRepositoryImpl implements FriendRepository {
     } on PostgrestException catch (e) {
       if (e.code == '23505') throw const FriendRequestAlreadySentFailure();
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -42,6 +46,8 @@ class FriendRepositoryImpl implements FriendRepository {
       await _remoteDataSource.cancelFriendRequest(requestId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -53,6 +59,8 @@ class FriendRepositoryImpl implements FriendRepository {
       await _remoteDataSource.acceptFriendRequest(requestId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -64,17 +72,21 @@ class FriendRepositoryImpl implements FriendRepository {
       await _remoteDataSource.rejectFriendRequest(requestId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
   }
 
   @override
-  Future<List<FriendEntity>> getFriends() async {
+  Future<List<FriendEntity>> getFriends(FriendSortType sortType) async {
     try {
-      return await _remoteDataSource.getFriends();
+      return await _remoteDataSource.getFriends(sortType);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -86,6 +98,8 @@ class FriendRepositoryImpl implements FriendRepository {
       await _remoteDataSource.deleteFriend(friendId);
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -97,6 +111,8 @@ class FriendRepositoryImpl implements FriendRepository {
       return await _remoteDataSource.getIncomingRequests();
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -118,6 +134,8 @@ class FriendRepositoryImpl implements FriendRepository {
       );
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
@@ -125,35 +143,63 @@ class FriendRepositoryImpl implements FriendRepository {
 
   @override
   Future<List<FreeSlotEntity>> mergeCalendars({
-    required String friendId,
+    required List<String> friendIds,
     required DateTime from,
     required DateTime to,
   }) async {
+    if (friendIds.isEmpty) return [];
     try {
-      return await _remoteDataSource.getFreeSlots(
-        friendId: friendId,
-        from: from,
-        to: to,
+      final allSlots = await Future.wait(
+        friendIds.map(
+          (id) => _remoteDataSource.getFreeSlots(friendId: id, from: from, to: to),
+        ),
       );
+      var intersection = allSlots[0];
+      for (int i = 1; i < allSlots.length; i++) {
+        intersection = _intersectSlots(intersection, allSlots[i]);
+        if (intersection.isEmpty) break;
+      }
+      return intersection;
     } on PostgrestException catch (e) {
       throw _mapPostgrest(e);
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }
+  }
+
+  List<FreeSlotEntity> _intersectSlots(
+    List<FreeSlotEntity> a,
+    List<FreeSlotEntity> b,
+  ) {
+    final result = <FreeSlotEntity>[];
+    for (final slotA in a) {
+      for (final slotB in b) {
+        final start = slotA.startAt.isAfter(slotB.startAt) ? slotA.startAt : slotB.startAt;
+        final end = slotA.endAt.isBefore(slotB.endAt) ? slotA.endAt : slotB.endAt;
+        if (start.isBefore(end)) {
+          result.add(FreeSlotEntity(startAt: start, endAt: end));
+        }
+      }
+    }
+    return result;
   }
 
   @override
   Future<FreeSlotEntity?> suggestAppointment(String friendId) async {
     try {
       final now = DateTime.now();
-      final slots = await _remoteDataSource.getFreeSlots(
-        friendId: friendId,
+      final slots = await mergeCalendars(
+        friendIds: [friendId],
         from: now,
         to: now.add(const Duration(days: 30)),
       );
       return slots.isNotEmpty ? slots.first : null;
-    } on PostgrestException catch (e) {
-      throw _mapPostgrest(e);
+    } on FriendFailure {
+      rethrow;
+    } on AuthException {
+      rethrow;
     } catch (_) {
       throw const UnknownFriendFailure();
     }

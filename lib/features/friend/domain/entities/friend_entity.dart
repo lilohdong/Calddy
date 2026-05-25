@@ -33,3 +33,5 @@ class FriendRequestEntity {
 }
 
 enum FriendRequestStatus { pending, accepted, rejected }
+
+enum FriendSortType { alphabetical, freeTimeOverlap }

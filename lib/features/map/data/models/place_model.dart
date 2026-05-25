@@ -10,16 +10,14 @@ class PlaceModel extends PlaceEntity {
     super.distanceFromMidpoint,
   });
 
-  factory PlaceModel.fromJson(Map<String, dynamic> json) {
-    return PlaceModel(
-      placeId: json['placeId'] as String,
-      name: json['name'] as String,
-      address: json['address'] as String,
-      lat: (json['lat'] as num).toDouble(),
-      lng: (json['lng'] as num).toDouble(),
-      distanceFromMidpoint: json['distanceFromMidpoint'] != null
-          ? (json['distanceFromMidpoint'] as num).toDouble()
-          : null,
-    );
-  }
+  factory PlaceModel.fromJson(Map<String, dynamic> json) => PlaceModel(
+        placeId: json['placeId'] as String,
+        name: json['name'] as String,
+        address: json['address'] as String,
+        lat: (json['lat'] as num).toDouble(),
+        lng: (json['lng'] as num).toDouble(),
+        distanceFromMidpoint: json['distanceFromMidpoint'] != null
+            ? (json['distanceFromMidpoint'] as num).toDouble()
+            : null,
+      );
 }

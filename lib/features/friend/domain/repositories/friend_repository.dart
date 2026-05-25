@@ -19,8 +19,8 @@ abstract class FriendRepository {
   /// 친구 요청 취소 (내가 보낸 요청 삭제)
   Future<void> cancelFriendRequest(String requestId);
 
-  /// 내 친구 목록 조회 (가나다순)
-  Future<List<FriendEntity>> getFriends();
+  /// 내 친구 목록 조회 (정렬 방식 선택 가능)
+  Future<List<FriendEntity>> getFriends(FriendSortType sortType);
 
   /// 친구 삭제 (friends 테이블 양방향 레코드 DELETE)
   Future<void> deleteFriend(String friendId);
@@ -37,9 +37,9 @@ abstract class FriendRepository {
     required DateTime to,
   });
 
-  /// 두 유저의 빈 시간대 교차 계산 (Supabase RPC: free_slots)
+  /// N명과의 공통 빈 시간대 교차 계산 (Supabase RPC: free_slots 병렬 호출 후 교집합)
   Future<List<FreeSlotEntity>> mergeCalendars({
-    required String friendId,
+    required List<String> friendIds,
     required DateTime from,
     required DateTime to,
   });

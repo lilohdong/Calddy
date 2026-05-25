@@ -16,6 +16,7 @@ import '../../domain/usecases/get_friends_use_case.dart';
 import '../../domain/usecases/get_incoming_requests_use_case.dart';
 import '../../domain/usecases/merge_calendars_use_case.dart';
 import '../../domain/usecases/reject_friend_request_use_case.dart';
+import '../../domain/usecases/suggest_appointment_use_case.dart';
 import '../../domain/usecases/search_users_use_case.dart';
 import '../../domain/usecases/send_friend_request_use_case.dart';
 
@@ -76,9 +77,12 @@ final getIncomingRequestsUseCaseProvider =
 
 // ── State Providers ───────────────────────────────────────────────────────────
 
-/// 친구 목록 (가나다순, pull-to-refresh 시 invalidate)
-final friendsProvider = FutureProvider<List<FriendEntity>>((ref) {
-  return ref.watch(getFriendsUseCaseProvider).call(const NoParams());
+/// 친구 목록 (정렬 방식 선택 가능 — FriendSortType.alphabetical / freeTimeOverlap)
+final friendsProvider = FutureProvider.autoDispose
+    .family<List<FriendEntity>, FriendSortType>((ref, sortType) {
+  return ref
+      .watch(getFriendsUseCaseProvider)
+      .call(GetFriendsParams(sortType: sortType));
 });
 
 /// 받은 친구 요청 목록 (pending)
@@ -98,6 +102,10 @@ final mergeCalendarsUseCaseProvider = Provider<MergeCalendarsUseCase>((ref) {
   return MergeCalendarsUseCase(ref.watch(friendRepositoryProvider));
 });
 
+final suggestAppointmentUseCaseProvider = Provider<SuggestAppointmentUseCase>((ref) {
+  return SuggestAppointmentUseCase(ref.watch(friendRepositoryProvider));
+});
+
 // ── P2 State Providers (family) ───────────────────────────────────────────────
 
 /// 친구 이번 달 공개 일정
@@ -113,13 +121,18 @@ final friendCalendarProvider = FutureProvider.autoDispose
       );
 });
 
-/// 나와 친구의 공통 빈 시간 (오늘~+30일)
+/// N명과의 공통 빈 시간 (오늘~+30일)
+/// family key: 친구 ID들을 ','로 join한 문자열 (예: "id1,id2,id3")
 final mergeCalendarProvider = FutureProvider.autoDispose
-    .family<List<FreeSlotEntity>, String>((ref, friendId) {
+    .family<List<FreeSlotEntity>, String>((ref, friendIdsJoined) {
+  final friendIds = friendIdsJoined
+      .split(',')
+      .where((s) => s.isNotEmpty)
+      .toList();
   final now = DateTime.now();
   return ref.watch(mergeCalendarsUseCaseProvider).call(
         MergeCalendarsParams(
-          friendId: friendId,
+          friendIds: friendIds,
           from: now,
           to: now.add(const Duration(days: 30)),
         ),
@@ -127,8 +140,9 @@ final mergeCalendarProvider = FutureProvider.autoDispose
 });
 
 /// 가장 가까운 추천 빈 시간 1개 (mergeCalendarProvider 결과 재사용 — RPC 중복 호출 방지)
-final suggestedSlotProvider =
-    FutureProvider.autoDispose.family<FreeSlotEntity?, String>((ref, friendId) async {
-  final slots = await ref.watch(mergeCalendarProvider(friendId).future);
+/// friendIdsJoined: 친구 ID들을 ','로 join한 문자열
+final suggestedSlotProvider = FutureProvider.autoDispose
+    .family<FreeSlotEntity?, String>((ref, friendIdsJoined) async {
+  final slots = await ref.watch(mergeCalendarProvider(friendIdsJoined).future);
   return slots.firstOrNull;
 });

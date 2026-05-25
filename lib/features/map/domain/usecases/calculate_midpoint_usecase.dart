@@ -10,7 +10,7 @@ class CalculateMidpointParams {
 class CalculateMidpointUseCase
     implements UseCase<MidpointResultEntity, CalculateMidpointParams> {
   final MapRepository _repository;
-  CalculateMidpointUseCase(this._repository);
+  const CalculateMidpointUseCase(this._repository);
 
   @override
   Future<MidpointResultEntity> call(CalculateMidpointParams params) =>

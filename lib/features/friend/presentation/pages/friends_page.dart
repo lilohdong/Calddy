@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/error/failures.dart';
+import '../../domain/entities/friend_entity.dart';
 import '../../domain/entities/searched_user_entity.dart';
 import '../../domain/usecases/accept_friend_request_use_case.dart';
 import '../../domain/usecases/cancel_friend_request_use_case.dart';
@@ -31,6 +32,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
   String _query = '';
   AsyncValue<List<SearchedUserEntity>> _searchResults = const AsyncValue.data([]);
   final _loadingIds = <String>{};
+  FriendSortType _sortType = FriendSortType.alphabetical;
 
   @override
   void dispose() {
@@ -95,6 +97,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       await ref.read(acceptFriendRequestUseCaseProvider)
           .call(AcceptFriendRequestParams(requestId: requestId));
       ref..invalidate(incomingRequestsProvider)..invalidate(friendsProvider);
+      if (_query.isNotEmpty) await _search(_query);
     } on FriendFailure catch (e) {
       _showError(e.message);
     } catch (_) {
@@ -196,11 +199,13 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
 
   Widget _buildFriendList() {
     final requestsAsync = ref.watch(incomingRequestsProvider);
-    final friendsAsync = ref.watch(friendsProvider);
+    final friendsAsync = ref.watch(friendsProvider(_sortType));
 
     return RefreshIndicator(
       onRefresh: () async {
-        ref..invalidate(incomingRequestsProvider)..invalidate(friendsProvider);
+        ref
+          ..invalidate(incomingRequestsProvider)
+          ..invalidate(friendsProvider(_sortType));
       },
       child: ListView(
         children: [
@@ -235,9 +240,28 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                 return [const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('아직 친구가 없습니다.')))];
               }
               return [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Text('친구', style: TextStyle(fontWeight: FontWeight.bold)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+                  child: Row(
+                    children: [
+                      const Text('친구', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      TextButton.icon(
+                        icon: const Icon(Icons.sort, size: 16),
+                        label: Text(
+                          _sortType == FriendSortType.alphabetical ? '가나다순' : '빈시간순',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _sortType = _sortType == FriendSortType.alphabetical
+                                ? FriendSortType.freeTimeOverlap
+                                : FriendSortType.alphabetical;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                 ),
                 ...friends.map((f) => FriendListTile(
                       friend: f,

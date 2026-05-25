@@ -1,30 +1,42 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/providers/global_providers.dart';
-import '../../data/datasources/map_remote_datasource.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../data/datasources/map_remote_datasource_impl.dart';
 import '../../data/repositories/map_repository_impl.dart';
-import '../../domain/repositories/map_repository.dart';
+import '../../domain/entities/midpoint_result_entity.dart';
+import '../../domain/entities/recommendation_result_entity.dart';
 import '../../domain/usecases/calculate_midpoint_usecase.dart';
-import '../../domain/usecases/search_places_usecase.dart';
+import '../../domain/usecases/recommend_place_usecase.dart';
 
-/// 맵 데이터 소스 프로바이더
-final mapRemoteDataSourceProvider = Provider<MapRemoteDataSource>((ref) {
-  return MapRemoteDataSourceImpl(ref.watch(supabaseClientProvider));
+final _mapDataSourceProvider = Provider(
+  (ref) => MapRemoteDataSourceImpl(Supabase.instance.client),
+);
+
+final _mapRepositoryProvider = Provider(
+  (ref) => MapRepositoryImpl(ref.watch(_mapDataSourceProvider)),
+);
+
+final _calculateMidpointUseCaseProvider = Provider(
+  (ref) => CalculateMidpointUseCase(ref.watch(_mapRepositoryProvider)),
+);
+
+final _recommendPlaceUseCaseProvider = Provider(
+  (ref) => RecommendPlaceUseCase(ref.watch(_mapRepositoryProvider)),
+);
+
+/// appointmentId → MidpointResultEntity
+final midpointProvider = FutureProvider.autoDispose
+    .family<MidpointResultEntity, String>((ref, appointmentId) {
+  return ref
+      .read(_calculateMidpointUseCaseProvider)
+      .call(CalculateMidpointParams(appointmentId: appointmentId));
 });
 
-/// 맵 리포지토리 프로바이더
-final mapRepositoryProvider = Provider<MapRepository>((ref) {
-  return MapRepositoryImpl(
-    remoteDataSource: ref.watch(mapRemoteDataSourceProvider),
-  );
-});
-
-// ── UseCase 프로바이더 ──────────────────────────────────────────
-
-final calculateMidpointUseCaseProvider = Provider<CalculateMidpointUseCase>((ref) {
-  return CalculateMidpointUseCase(ref.watch(mapRepositoryProvider));
-});
-
-final searchPlacesUseCaseProvider = Provider<SearchPlacesUseCase>((ref) {
-  return SearchPlacesUseCase(ref.watch(mapRepositoryProvider));
+/// MidpointResultEntity → RecommendationResultEntity
+/// MidpointResultEntity에 participants까지 포함한 ==·hashCode 구현 필요
+final recommendPlaceProvider = FutureProvider.autoDispose
+    .family<RecommendationResultEntity, MidpointResultEntity>((ref, midpoint) {
+  return ref
+      .read(_recommendPlaceUseCaseProvider)
+      .call(RecommendPlaceParams(midpoint: midpoint));
 });

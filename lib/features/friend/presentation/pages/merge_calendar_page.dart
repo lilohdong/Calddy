@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/router/app_routes.dart';
 import '../providers/friend_providers.dart';
 
 class MergeCalendarPage extends ConsumerWidget {
@@ -37,6 +39,10 @@ class MergeCalendarPage extends ConsumerWidget {
                     title: Text(_fmtDate(slot.startAt)),
                     subtitle: Text(
                       '${_fmtTime(slot.startAt)} ~ ${_fmtTime(slot.endAt)}',
+                    ),
+                    trailing: TextButton(
+                      onPressed: () => context.push(AppRoutes.appointmentCreate),
+                      child: const Text('약속 잡기'),
                     ),
                   ),
           ),
