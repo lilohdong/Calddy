@@ -10,7 +10,9 @@ import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../features/calendar/presentation/pages/calendar_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
+import '../../features/friend/presentation/pages/friend_calendar_page.dart';
 import '../../features/friend/presentation/pages/friends_page.dart';
+import '../../features/friend/presentation/pages/merge_calendar_page.dart';
 import '../../features/map/presentation/pages/place_picker_page.dart';
 import '../../features/notification/presentation/pages/notifications_page.dart';
 import '../../features/user/presentation/pages/profile_page.dart';
@@ -161,14 +163,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':friendId/calendar',
-                builder: (_, s) => _PlaceholderPage(
-                  title: '친구 캘린더 (${s.pathParameters['friendId']})',
+                builder: (_, s) => FriendCalendarPage(
+                  friendId: s.pathParameters['friendId']!,
                 ),
               ),
               GoRoute(
                 path: ':friendId/merge',
-                builder: (_, s) => _PlaceholderPage(
-                  title: '캘린더 합치기 (${s.pathParameters['friendId']})',
+                builder: (_, s) => MergeCalendarPage(
+                  friendId: s.pathParameters['friendId']!,
                 ),
               ),
             ],
