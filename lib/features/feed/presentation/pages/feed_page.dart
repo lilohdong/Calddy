@@ -6,6 +6,7 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../domain/entities/post_entity.dart';
 import '../../domain/usecases/delete_post_usecase.dart';
+import '../../domain/usecases/toggle_post_like_usecase.dart';
 import '../providers/feed_providers.dart';
 
 class FeedPage extends ConsumerStatefulWidget {
@@ -27,6 +28,24 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       await ref
           .read(deletePostUseCaseProvider)
           .call(DeletePostParams(postId: postId));
+      ref.invalidate(feedByDateProvider(_selectedDate));
+    } on FeedFailure catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleLike(PostEntity post) async {
+    try {
+      await ref.read(togglePostLikeUseCaseProvider).call(
+            TogglePostLikeParams(
+              postId: post.id,
+              currentlyLiked: post.isLikedByMe,
+            ),
+          );
       ref.invalidate(feedByDateProvider(_selectedDate));
     } on FeedFailure catch (e) {
       if (mounted) {
@@ -83,6 +102,8 @@ class _FeedPageState extends ConsumerState<FeedPage> {
               itemBuilder: (_, i) => _PostTile(
                 post: posts[i],
                 onDelete: () => _deletePost(posts[i].id),
+                onToggleLike: () => _toggleLike(posts[i]),
+                onTap: () => context.push('/feed/post/${posts[i].id}'),
               ),
             );
           },
@@ -100,18 +121,24 @@ class _FeedPageState extends ConsumerState<FeedPage> {
 }
 
 class _PostTile extends StatelessWidget {
-  const _PostTile({required this.post, required this.onDelete});
+  const _PostTile({
+    required this.post,
+    required this.onDelete,
+    required this.onToggleLike,
+    required this.onTap,
+  });
 
   final PostEntity post;
   final VoidCallback onDelete;
+  final VoidCallback onToggleLike;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      onTap: onTap,
       title: Text(post.content ?? '(이미지 게시글)'),
-      subtitle: Text(
-        '${_fmt(post.createdAt)}  ·  좋아요 ${post.likesCount}',
-      ),
+      subtitle: Text('${_fmt(post.createdAt)}  ·  좋아요 ${post.likesCount}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -121,6 +148,13 @@ class _PostTile extends StatelessWidget {
                 : Icons.lock_outline,
             size: 16,
             color: Colors.grey,
+          ),
+          IconButton(
+            icon: Icon(
+              post.isLikedByMe ? Icons.favorite : Icons.favorite_border,
+              color: post.isLikedByMe ? Colors.red : null,
+            ),
+            onPressed: onToggleLike,
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline),

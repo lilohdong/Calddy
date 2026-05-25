@@ -1,3 +1,4 @@
+import '../../domain/entities/comment_entity.dart';
 import '../../domain/entities/post_entity.dart';
 
 abstract class FeedRemoteDataSource {
@@ -19,4 +20,25 @@ abstract class FeedRemoteDataSource {
   });
 
   Future<void> deletePost(String postId);
+
+  // ── P2 ────────────────────────────────────────────────────────────────────
+
+  Future<void> togglePostLike({
+    required String postId,
+    required bool currentlyLiked,
+  });
+
+  Future<List<CommentEntity>> getComments(String postId);
+
+  Future<void> createComment({
+    required String postId,
+    required String content,
+  });
+
+  Future<void> updateComment({
+    required String commentId,
+    required String content,
+  });
+
+  Future<void> deleteComment(String commentId);
 }

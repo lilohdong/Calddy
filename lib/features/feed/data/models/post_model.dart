@@ -14,7 +14,11 @@ class PostModel extends PostEntity {
     required super.createdAt,
   });
 
-  factory PostModel.fromJson(Map<String, dynamic> json) => PostModel(
+  factory PostModel.fromJson(
+    Map<String, dynamic> json, {
+    bool isLikedByMe = false,
+  }) =>
+      PostModel(
         id: json['id'] as String,
         userId: json['user_id'] as String,
         eventId: json['event_id'] as String?,
@@ -24,7 +28,7 @@ class PostModel extends PostEntity {
             ? PostVisibility.public
             : PostVisibility.private,
         likesCount: (json['likes_count'] as int?) ?? 0,
-        isLikedByMe: false, // P2에서 post_likes 조회로 교체
+        isLikedByMe: isLikedByMe,
         feedDate: DateTime.parse(json['feed_date'] as String),
         createdAt: DateTime.parse(json['created_at'] as String),
       );

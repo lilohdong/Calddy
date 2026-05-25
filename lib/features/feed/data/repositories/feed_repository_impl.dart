@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../domain/entities/comment_entity.dart';
 import '../../domain/entities/post_entity.dart';
 import '../../domain/repositories/feed_repository.dart';
 import '../datasources/feed_remote_datasource.dart';
@@ -76,6 +77,86 @@ class FeedRepositoryImpl implements FeedRepository {
   Future<void> deletePost(String postId) async {
     try {
       await _remoteDataSource.deletePost(postId);
+    } on AuthException {
+      throw const FeedSessionExpiredFailure();
+    } on PostgrestException catch (e) {
+      throw _mapPostgrest(e);
+    } catch (_) {
+      throw const FeedUnknownFailure();
+    }
+  }
+
+  // ── P2 ────────────────────────────────────────────────────────────────────
+
+  @override
+  Future<void> togglePostLike({
+    required String postId,
+    required bool currentlyLiked,
+  }) async {
+    try {
+      await _remoteDataSource.togglePostLike(
+        postId: postId,
+        currentlyLiked: currentlyLiked,
+      );
+    } on AuthException {
+      throw const FeedSessionExpiredFailure();
+    } on PostgrestException catch (e) {
+      throw _mapPostgrest(e);
+    } catch (_) {
+      throw const FeedUnknownFailure();
+    }
+  }
+
+  @override
+  Future<List<CommentEntity>> getComments(String postId) async {
+    try {
+      return await _remoteDataSource.getComments(postId);
+    } on AuthException {
+      throw const FeedSessionExpiredFailure();
+    } on PostgrestException catch (e) {
+      throw _mapPostgrest(e);
+    } catch (_) {
+      throw const FeedUnknownFailure();
+    }
+  }
+
+  @override
+  Future<void> createComment({
+    required String postId,
+    required String content,
+  }) async {
+    try {
+      await _remoteDataSource.createComment(postId: postId, content: content);
+    } on AuthException {
+      throw const FeedSessionExpiredFailure();
+    } on PostgrestException catch (e) {
+      throw _mapPostgrest(e);
+    } catch (_) {
+      throw const FeedUnknownFailure();
+    }
+  }
+
+  @override
+  Future<void> updateComment({
+    required String commentId,
+    required String content,
+  }) async {
+    try {
+      await _remoteDataSource.updateComment(
+          commentId: commentId, content: content);
+    } on AuthException {
+      throw const FeedSessionExpiredFailure();
+    } on PostgrestException catch (e) {
+      throw _mapPostgrest(e);
+    } catch (_) {
+      throw const FeedUnknownFailure();
+    }
+  }
+
+  @override
+  Future<void> deleteComment(String commentId) async {
+    try {
+      await _remoteDataSource.deleteComment(commentId);
     } on AuthException {
       throw const FeedSessionExpiredFailure();
     } on PostgrestException catch (e) {
