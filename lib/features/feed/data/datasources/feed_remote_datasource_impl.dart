@@ -4,9 +4,8 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/supabase_constants.dart';
-import '../../domain/entities/comment_entity.dart';
-import '../../domain/entities/post_entity.dart';
 import '../models/comment_model.dart';
+import '../models/post_liker_model.dart';
 import '../models/post_model.dart';
 import 'feed_remote_datasource.dart';
 
@@ -23,7 +22,7 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
   }
 
   @override
-  Future<List<PostEntity>> getFeedByDate(DateTime date, {DateTime? cursor}) async {
+  Future<List<PostModel>> getFeedByDate(DateTime date, {DateTime? cursor}) async {
     final userId = _currentUserId;
     final dateStr = _dateStr(date);
 
@@ -116,31 +115,10 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
 
   @override
   Future<void> deletePost(String postId) async {
-    final userId = _currentUserId;
-
-    // image_url 먼저 조회해서 Storage 파일 삭제
-    final row = await _supabase
-        .from(SupabaseConstants.posts)
-        .select('image_url')
-        .eq('id', postId)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-    final imageUrl = row?['image_url'] as String?;
-    if (imageUrl != null) {
-      final path = _extractStoragePath(imageUrl);
-      if (path != null) {
-        await _supabase.storage
-            .from(SupabaseConstants.postsBucket)
-            .remove([path]);
-      }
-    }
-
-    await _supabase
-        .from(SupabaseConstants.posts)
-        .delete()
-        .eq('id', postId)
-        .eq('user_id', userId);
+    await _supabase.functions.invoke(
+      'delete-post',
+      body: {'post_id': postId},
+    );
   }
 
   // ── P2 ────────────────────────────────────────────────────────────────────
@@ -166,7 +144,7 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
   }
 
   @override
-  Future<List<CommentEntity>> getComments(String postId) async {
+  Future<List<CommentModel>> getComments(String postId) async {
     final results = await _supabase
         .from(SupabaseConstants.comments)
         .select('id, post_id, user_id, content, created_at')
@@ -212,8 +190,8 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
   }
 
   @override
-  Stream<List<CommentEntity>> watchComments(String postId) {
-    final controller = StreamController<List<CommentEntity>>();
+  Stream<List<CommentModel>> watchComments(String postId) {
+    final controller = StreamController<List<CommentModel>>.broadcast();
 
     // 초기 데이터 즉시 로드
     getComments(postId).then((comments) {
@@ -247,12 +225,37 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
     return controller.stream;
   }
 
-  // URL에서 Storage 경로 추출: .../public/posts/userId/filename → userId/filename
-  String? _extractStoragePath(String imageUrl) {
-    final marker = '/object/public/${SupabaseConstants.postsBucket}/';
-    final idx = imageUrl.indexOf(marker);
-    if (idx == -1) return null;
-    return imageUrl.substring(idx + marker.length);
+  @override
+  Future<List<PostLikerModel>> getPostLikers(String postId) async {
+    final userId = _currentUserId;
+
+    final results = await _supabase
+        .from(SupabaseConstants.postLikes)
+        .select('user_id, profiles(nickname, avatar_url)')
+        .eq('post_id', postId)
+        .order('created_at');
+
+    final likers = results as List;
+    if (likers.isEmpty) return [];
+
+    // 좋아요 누른 사람들 중 내 친구인지 일괄 확인
+    final likerIds = likers.map((l) => l['user_id'] as String).toList();
+    final friendResults = await _supabase
+        .from(SupabaseConstants.friends)
+        .select('friend_id')
+        .eq('user_id', userId)
+        .inFilter('friend_id', likerIds);
+
+    final friendIds = {
+      for (final f in friendResults as List) f['friend_id'] as String,
+    };
+
+    return likers
+        .map((json) => PostLikerModel.fromJson(
+              json as Map<String, dynamic>,
+              isFriend: friendIds.contains(json['user_id'] as String),
+            ))
+        .toList();
   }
 
   String _dateStr(DateTime date) =>

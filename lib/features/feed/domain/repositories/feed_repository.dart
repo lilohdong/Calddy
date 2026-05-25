@@ -1,5 +1,6 @@
 import '../entities/comment_entity.dart';
 import '../entities/post_entity.dart';
+import '../entities/post_liker_entity.dart';
 
 abstract class FeedRepository {
   /// 날짜 기준 피드 리스트 조회 (최신 20개, isLikedByMe 포함)
@@ -54,4 +55,7 @@ abstract class FeedRepository {
 
   /// 댓글 삭제 (본인 한정)
   Future<void> deleteComment(String commentId);
+
+  /// 특정 게시글에 좋아요 누른 사용자 목록 조회
+  Future<List<PostLikerEntity>> getPostLikers(String postId);
 }

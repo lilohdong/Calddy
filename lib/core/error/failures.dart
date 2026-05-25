@@ -12,3 +12,4 @@ export 'failures/drawing_failure.dart';
 export 'failures/friend_failure.dart';
 export 'failures/feed_failure.dart';
 export 'failures/map_failure.dart';
+export 'failures/report_failure.dart';

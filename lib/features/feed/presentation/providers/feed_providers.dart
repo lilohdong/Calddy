@@ -7,12 +7,14 @@ import '../../data/repositories/feed_repository_impl.dart';
 import '../../domain/entities/post_entity.dart';
 import '../../domain/repositories/feed_repository.dart';
 import '../../domain/entities/comment_entity.dart';
+import '../../domain/entities/post_liker_entity.dart';
 import '../../domain/usecases/create_comment_usecase.dart';
 import '../../domain/usecases/create_post_usecase.dart';
 import '../../domain/usecases/delete_comment_usecase.dart';
 import '../../domain/usecases/delete_post_usecase.dart';
 import '../../domain/usecases/get_comments_usecase.dart';
 import '../../domain/usecases/get_feed_by_date_usecase.dart';
+import '../../domain/usecases/get_post_likers_usecase.dart';
 import '../../domain/usecases/toggle_post_like_usecase.dart';
 import '../../domain/usecases/update_comment_usecase.dart';
 import '../../domain/usecases/update_post_usecase.dart';
@@ -69,6 +71,10 @@ final updateCommentUseCaseProvider = Provider<UpdateCommentUseCase>((ref) {
 
 final deleteCommentUseCaseProvider = Provider<DeleteCommentUseCase>((ref) {
   return DeleteCommentUseCase(ref.watch(feedRepositoryProvider));
+});
+
+final getPostLikersUseCaseProvider = Provider<GetPostLikersUseCase>((ref) {
+  return GetPostLikersUseCase(ref.watch(feedRepositoryProvider));
 });
 
 // ── State Providers ───────────────────────────────────────────────────────────
@@ -128,6 +134,12 @@ final commentsStreamProvider = StreamProvider.autoDispose
 final commentsProvider = FutureProvider.autoDispose
     .family<List<CommentEntity>, String>((ref, postId) {
   return ref
-      .watch(getCommentsUseCaseProvider)
+      .read(getCommentsUseCaseProvider)
       .call(GetCommentsParams(postId: postId));
+});
+
+/// 특정 게시글 좋아요 누른 사용자 목록
+final postLikersProvider = FutureProvider.autoDispose
+    .family<List<PostLikerEntity>, String>((ref, postId) {
+  return ref.read(getPostLikersUseCaseProvider).call(postId);
 });

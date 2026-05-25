@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/comment_entity.dart';
 import '../../domain/entities/post_entity.dart';
+import '../../domain/entities/post_liker_entity.dart';
 import '../../domain/repositories/feed_repository.dart';
 import '../datasources/feed_remote_datasource.dart';
 
@@ -161,6 +162,19 @@ class FeedRepositoryImpl implements FeedRepository {
   Future<void> deleteComment(String commentId) async {
     try {
       await _remoteDataSource.deleteComment(commentId);
+    } on AuthException {
+      throw const FeedSessionExpiredFailure();
+    } on PostgrestException catch (e) {
+      throw _mapPostgrest(e);
+    } catch (_) {
+      throw const FeedUnknownFailure();
+    }
+  }
+
+  @override
+  Future<List<PostLikerEntity>> getPostLikers(String postId) async {
+    try {
+      return await _remoteDataSource.getPostLikers(postId);
     } on AuthException {
       throw const FeedSessionExpiredFailure();
     } on PostgrestException catch (e) {
