@@ -4,7 +4,8 @@ import '../repositories/feed_repository.dart';
 
 class GetFeedByDateParams {
   final DateTime date;
-  const GetFeedByDateParams({required this.date});
+  final DateTime? cursor;
+  const GetFeedByDateParams({required this.date, this.cursor});
 }
 
 class GetFeedByDateUseCase
@@ -14,5 +15,5 @@ class GetFeedByDateUseCase
 
   @override
   Future<List<PostEntity>> call(GetFeedByDateParams params) =>
-      _repository.getFeedByDate(params.date);
+      _repository.getFeedByDate(params.date, cursor: params.cursor);
 }

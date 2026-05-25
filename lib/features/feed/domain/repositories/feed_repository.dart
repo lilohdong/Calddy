@@ -3,7 +3,11 @@ import '../entities/post_entity.dart';
 
 abstract class FeedRepository {
   /// 날짜 기준 피드 리스트 조회 (최신 20개, isLikedByMe 포함)
-  Future<List<PostEntity>> getFeedByDate(DateTime date);
+  /// cursor: 마지막으로 받은 게시글의 createdAt (null이면 첫 페이지)
+  Future<List<PostEntity>> getFeedByDate(DateTime date, {DateTime? cursor});
+
+  /// Realtime: 댓글 변경사항 구독
+  Stream<List<CommentEntity>> watchComments(String postId);
 
   /// 게시글 생성 (content/imageBytes 중 하나 이상 필수)
   Future<void> createPost({

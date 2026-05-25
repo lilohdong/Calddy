@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,16 +23,22 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
   }
 
   @override
-  Future<List<PostEntity>> getFeedByDate(DateTime date) async {
+  Future<List<PostEntity>> getFeedByDate(DateTime date, {DateTime? cursor}) async {
     final userId = _currentUserId;
     final dateStr = _dateStr(date);
 
-    final results = await _supabase
+    var filterQuery = _supabase
         .from(SupabaseConstants.posts)
         .select(
           'id, user_id, event_id, content, image_url, visibility, likes_count, feed_date, created_at',
         )
-        .eq('feed_date', dateStr)
+        .eq('feed_date', dateStr);
+
+    if (cursor != null) {
+      filterQuery = filterQuery.lt('created_at', cursor.toIso8601String());
+    }
+
+    final results = await filterQuery
         .order('created_at', ascending: false)
         .limit(20);
 
@@ -83,9 +90,9 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
 
     await _supabase.from(SupabaseConstants.posts).insert({
       'user_id': userId,
-      if (eventId != null) 'event_id': eventId,
-      if (content != null) 'content': content,
-      if (imageUrl != null) 'image_url': imageUrl,
+      'event_id': eventId,
+      'content': content,
+      'image_url': imageUrl,
       'visibility': visibility,
       'feed_date': feedDate,
     });
@@ -202,6 +209,42 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
         .delete()
         .eq('id', commentId)
         .eq('user_id', _currentUserId);
+  }
+
+  @override
+  Stream<List<CommentEntity>> watchComments(String postId) {
+    final controller = StreamController<List<CommentEntity>>();
+
+    // 초기 데이터 즉시 로드
+    getComments(postId).then((comments) {
+      if (!controller.isClosed) controller.add(comments);
+    });
+
+    // Realtime 구독: INSERT / UPDATE / DELETE 모두 감지
+    final channel = _supabase
+        .channel('comments:$postId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: SupabaseConstants.comments,
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'post_id',
+            value: postId,
+          ),
+          callback: (_) async {
+            final comments = await getComments(postId);
+            if (!controller.isClosed) controller.add(comments);
+          },
+        )
+        .subscribe();
+
+    controller.onCancel = () {
+      _supabase.removeChannel(channel);
+      controller.close();
+    };
+
+    return controller.stream;
   }
 
   // URL에서 Storage 경로 추출: .../public/posts/userId/filename → userId/filename

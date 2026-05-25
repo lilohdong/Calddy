@@ -2,7 +2,8 @@ import '../../domain/entities/comment_entity.dart';
 import '../../domain/entities/post_entity.dart';
 
 abstract class FeedRemoteDataSource {
-  Future<List<PostEntity>> getFeedByDate(DateTime date);
+  /// cursor: 마지막으로 받은 게시글의 createdAt (null이면 첫 페이지)
+  Future<List<PostEntity>> getFeedByDate(DateTime date, {DateTime? cursor});
 
   Future<void> createPost({
     String? content,
@@ -41,4 +42,7 @@ abstract class FeedRemoteDataSource {
   });
 
   Future<void> deleteComment(String commentId);
+
+  /// Realtime: 댓글 변경사항 구독 (INSERT / UPDATE / DELETE)
+  Stream<List<CommentEntity>> watchComments(String postId);
 }

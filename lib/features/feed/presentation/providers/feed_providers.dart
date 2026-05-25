@@ -73,15 +73,58 @@ final deleteCommentUseCaseProvider = Provider<DeleteCommentUseCase>((ref) {
 
 // ── State Providers ───────────────────────────────────────────────────────────
 
-/// 날짜별 피드 (날짜가 바뀌면 자동 해제)
-final feedByDateProvider = FutureProvider.autoDispose
-    .family<List<PostEntity>, DateTime>((ref, date) {
-  return ref
-      .watch(getFeedByDateUseCaseProvider)
-      .call(GetFeedByDateParams(date: date));
+/// 날짜별 피드 — cursor 페이지네이션 지원
+/// fetchMore()로 다음 페이지, refresh()로 새로고침
+class FeedNotifier
+    extends AutoDisposeFamilyAsyncNotifier<List<PostEntity>, DateTime> {
+  DateTime? _cursor;
+  bool _hasMore = true;
+
+  bool get hasMore => _hasMore;
+
+  @override
+  Future<List<PostEntity>> build(DateTime arg) async {
+    _cursor = null;
+    _hasMore = true;
+    return _fetch(arg);
+  }
+
+  Future<List<PostEntity>> _fetch(DateTime date) async {
+    final posts = await ref.read(getFeedByDateUseCaseProvider).call(
+          GetFeedByDateParams(date: date, cursor: _cursor),
+        );
+    if (posts.length < 20) _hasMore = false;
+    if (posts.isNotEmpty) _cursor = posts.last.createdAt;
+    return posts;
+  }
+
+  /// 다음 페이지 로드 (스크롤 끝에서 호출)
+  Future<void> fetchMore() async {
+    if (!_hasMore) return;
+    final current = state.valueOrNull ?? [];
+    final more = await _fetch(arg);
+    state = AsyncData([...current, ...more]);
+  }
+
+  /// 새로고침 (pull-to-refresh에서 호출)
+  Future<void> refresh() async {
+    _cursor = null;
+    _hasMore = true;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => _fetch(arg));
+  }
+}
+
+final feedByDateProvider = AsyncNotifierProvider.autoDispose
+    .family<FeedNotifier, List<PostEntity>, DateTime>(FeedNotifier.new);
+
+/// 댓글 Realtime 구독 (postId별)
+final commentsStreamProvider = StreamProvider.autoDispose
+    .family<List<CommentEntity>, String>((ref, postId) {
+  return ref.watch(feedRepositoryProvider).watchComments(postId);
 });
 
-/// 게시물 댓글 (postId가 바뀌면 자동 해제)
+/// 게시물 댓글 단순 조회 (Realtime 불필요한 경우 대체 사용)
 final commentsProvider = FutureProvider.autoDispose
     .family<List<CommentEntity>, String>((ref, postId) {
   return ref

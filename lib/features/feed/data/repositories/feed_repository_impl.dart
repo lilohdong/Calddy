@@ -13,9 +13,9 @@ class FeedRepositoryImpl implements FeedRepository {
       : _remoteDataSource = remoteDataSource;
 
   @override
-  Future<List<PostEntity>> getFeedByDate(DateTime date) async {
+  Future<List<PostEntity>> getFeedByDate(DateTime date, {DateTime? cursor}) async {
     try {
-      return await _remoteDataSource.getFeedByDate(date);
+      return await _remoteDataSource.getFeedByDate(date, cursor: cursor);
     } on AuthException {
       throw const FeedSessionExpiredFailure();
     } on PostgrestException catch (e) {
@@ -24,6 +24,10 @@ class FeedRepositoryImpl implements FeedRepository {
       throw const FeedUnknownFailure();
     }
   }
+
+  @override
+  Stream<List<CommentEntity>> watchComments(String postId) =>
+      _remoteDataSource.watchComments(postId);
 
   @override
   Future<void> createPost({
