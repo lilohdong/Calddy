@@ -11,7 +11,7 @@ class ParticipantTravelModel extends ParticipantTravel {
       ParticipantTravelModel(
         userId: json['userId'] as String,
         nickname: json['nickname'] as String,
-        travelMinutes: json['travelMinutes'] as int?,
+        travelMinutes: (json['travelMinutes'] as num?)?.toInt(),
       );
 }
 
@@ -28,10 +28,12 @@ class MidpointResultModel extends MidpointResultEntity {
         lat: (json['lat'] as num).toDouble(),
         lng: (json['lng'] as num).toDouble(),
         iterationCount: (json['iterationCount'] as num?)?.toInt() ?? 0,
-        participants: (json['participants'] as List<dynamic>)
-            .map(
-              (e) => ParticipantTravelModel.fromJson(e as Map<String, dynamic>),
-            )
-            .toList(),
+        participants: (json['participants'] as List<dynamic>?)
+                ?.map(
+                  (e) =>
+                      ParticipantTravelModel.fromJson(e as Map<String, dynamic>),
+                )
+                .toList() ??
+            [],
       );
 }

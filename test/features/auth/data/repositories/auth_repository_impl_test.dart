@@ -228,6 +228,72 @@ void main() {
     });
   });
 
+  // ── updatePassword ───────────────────────────────────────────
+  group('updatePassword', () {
+    test('성공 시 예외 없이 완료된다', () async {
+      when(() => mockDataSource.updatePassword(any()))
+          .thenAnswer((_) async {});
+
+      await expectLater(
+        repository.updatePassword('NewPass@123'),
+        completes,
+      );
+      verify(() => mockDataSource.updatePassword('NewPass@123')).called(1);
+    });
+
+    test('약한 비밀번호 → WeakPasswordFailure', () {
+      when(() => mockDataSource.updatePassword(any())).thenThrow(
+        const AuthException('Password should be at least 6 chars'),
+      );
+
+      expect(
+        () => repository.updatePassword('weak'),
+        throwsA(isA<WeakPasswordFailure>()),
+      );
+    });
+
+    test('이전 비밀번호와 동일 → SamePasswordFailure', () {
+      when(() => mockDataSource.updatePassword(any()))
+          .thenThrow(const AuthException('same password'));
+
+      expect(
+        () => repository.updatePassword('SamePass@1'),
+        throwsA(isA<SamePasswordFailure>()),
+      );
+    });
+
+    test('세션 만료 → SessionExpiredAuthFailure', () {
+      when(() => mockDataSource.updatePassword(any()))
+          .thenThrow(const AuthException('session_expired'));
+
+      expect(
+        () => repository.updatePassword('Pass@1234'),
+        throwsA(isA<SessionExpiredAuthFailure>()),
+      );
+    });
+
+    test('요청 초과 → TooManyRequestsFailure', () {
+      when(() => mockDataSource.updatePassword(any())).thenThrow(
+        const AuthException('too many requests', statusCode: '429'),
+      );
+
+      expect(
+        () => repository.updatePassword('Pass@1234'),
+        throwsA(isA<TooManyRequestsFailure>()),
+      );
+    });
+
+    test('알 수 없는 예외 → UnknownAuthFailure', () {
+      when(() => mockDataSource.updatePassword(any()))
+          .thenThrow(Exception('unknown'));
+
+      expect(
+        () => repository.updatePassword('Pass@1234'),
+        throwsA(isA<UnknownAuthFailure>()),
+      );
+    });
+  });
+
   // ── sendPasswordResetEmail ───────────────────────────────────
   group('sendPasswordResetEmail', () {
     test('성공 시 예외 없이 완료된다', () async {
