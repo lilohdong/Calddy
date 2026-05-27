@@ -156,6 +156,29 @@ void main() {
     });
   });
 
+  // ── requestPlaceSuggestion ───────────────────────────────────────────────
+
+  group('requestPlaceSuggestion', () {
+    test('장소 추천 결과를 반환한다', () async {
+      when(() => mockDataSource.requestPlaceSuggestion('appt-1'))
+          .thenAnswer((_) async => '스타벅스 강남점');
+
+      final result = await repository.requestPlaceSuggestion('appt-1');
+
+      expect(result, '스타벅스 강남점');
+      verify(() => mockDataSource.requestPlaceSuggestion('appt-1')).called(1);
+    });
+
+    test('추천 결과가 없으면 null을 반환한다', () async {
+      when(() => mockDataSource.requestPlaceSuggestion('appt-1'))
+          .thenAnswer((_) async => null);
+
+      final result = await repository.requestPlaceSuggestion('appt-1');
+
+      expect(result, isNull);
+    });
+  });
+
   // ── _guard: Failure 변환 ─────────────────────────────────────────────────
 
   group('_guard Failure 매핑', () {

@@ -3,11 +3,14 @@ import 'package:calddy/features/map/data/datasources/map_remote_datasource.dart'
 import 'package:calddy/features/map/data/models/midpoint_result_model.dart';
 import 'package:calddy/features/map/data/models/recommendation_result_model.dart';
 import 'package:calddy/features/map/data/repositories/map_repository_impl.dart';
+import 'package:calddy/features/map/domain/entities/midpoint_result_entity.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MockMapRemoteDataSource extends Mock implements MapRemoteDataSource {}
+
+class _FakeMidpointResultEntity extends Fake implements MidpointResultEntity {}
 
 final _dummyMidpoint = MidpointResultModel(
   lat: 37.5,
@@ -26,6 +29,10 @@ const _dummyRecommendation = RecommendationResultModel(
 void main() {
   late MapRepositoryImpl repository;
   late MockMapRemoteDataSource mockDataSource;
+
+  setUpAll(() {
+    registerFallbackValue(_FakeMidpointResultEntity());
+  });
 
   setUp(() {
     mockDataSource = MockMapRemoteDataSource();
