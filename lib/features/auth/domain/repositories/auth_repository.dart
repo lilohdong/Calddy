@@ -36,6 +36,9 @@ abstract class AuthRepository {
   /// 비밀번호 재설정 이메일 전송
   Future<void> sendPasswordResetEmail(String email);
 
+  /// 새 비밀번호로 업데이트 (딥링크 복귀 후 호출)
+  Future<void> updatePassword(String newPassword);
+
   /// 로그아웃
   Future<void> signOut();
 

@@ -46,6 +46,9 @@ abstract class AuthRemoteDataSource {
   /// 비밀번호 재설정 이메일 전송
   Future<void> sendPasswordResetEmail(String email);
 
+  /// 새 비밀번호로 업데이트 (딥링크 복귀 후 호출)
+  Future<void> updatePassword(String newPassword);
+
   /// 세션 갱신 (authStateChanges 재트리거용)
   Future<void> refreshSession();
 

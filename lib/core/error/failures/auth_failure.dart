@@ -64,6 +64,21 @@ final class OtpExpiredFailure extends AuthFailure {
   const OtpExpiredFailure() : super('인증번호가 만료됐습니다.\n다시 발송해주세요.');
 }
 
+final class WeakPasswordFailure extends AuthFailure {
+  const WeakPasswordFailure()
+      : super('비밀번호가 너무 약합니다.\n영문·숫자·특수문자를 조합하여 8자 이상으로 입력해주세요.');
+}
+
+final class SamePasswordFailure extends AuthFailure {
+  const SamePasswordFailure()
+      : super('기존 비밀번호와 동일한 비밀번호는 사용할 수 없습니다.\n새로운 비밀번호를 입력해주세요.');
+}
+
+final class SessionExpiredAuthFailure extends AuthFailure {
+  const SessionExpiredAuthFailure()
+      : super('로그인 세션이 만료됐습니다.\n다시 로그인해주세요.');
+}
+
 final class UnknownAuthFailure extends AuthFailure {
   const UnknownAuthFailure() : super('알 수 없는 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.');
 }

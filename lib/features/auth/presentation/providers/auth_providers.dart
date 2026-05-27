@@ -14,6 +14,7 @@ import '../../domain/usecases/sign_in_with_google_use_case.dart';
 import '../../domain/usecases/sign_out_use_case.dart';
 import '../../domain/usecases/send_otp_use_case.dart';
 import '../../domain/usecases/sign_up_with_email_use_case.dart';
+import '../../domain/usecases/update_password_use_case.dart';
 import '../../domain/usecases/verify_otp_use_case.dart';
 
 /// 인증 데이터 소스 프로바이더
@@ -82,4 +83,8 @@ final sendOtpUseCaseProvider = Provider<SendOtpUseCase>((ref) {
 
 final verifyOtpUseCaseProvider = Provider<VerifyOtpUseCase>((ref) {
   return VerifyOtpUseCase(ref.watch(authRepositoryProvider));
+});
+
+final updatePasswordUseCaseProvider = Provider<UpdatePasswordUseCase>((ref) {
+  return UpdatePasswordUseCase(ref.watch(authRepositoryProvider));
 });

@@ -127,6 +127,17 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> updatePassword(String newPassword) async {
+    try {
+      await _remoteDataSource.updatePassword(newPassword);
+    } on AuthException catch (e) {
+      throw _mapUpdatePasswordException(e);
+    } catch (_) {
+      throw const UnknownAuthFailure();
+    }
+  }
+
+  @override
   Future<void> signOut() async {
     try {
       await _remoteDataSource.signOut();
@@ -152,6 +163,26 @@ class AuthRepositoryImpl implements AuthRepository {
   Stream<UserEntity?> get authStateChanges => _remoteDataSource.onAuthStateChange;
 
   // ── Private helpers ───────────────────────────────────────────
+
+  /// 비밀번호 업데이트 실패를 도메인 Failure로 변환.
+  AuthFailure _mapUpdatePasswordException(AuthException e) {
+    final msg = e.message.toLowerCase();
+    if (_statusCode429(e)) return const TooManyRequestsFailure();
+    if (msg.contains('weak password') ||
+        msg.contains('password should be') ||
+        msg.contains('password is too short')) {
+      return const WeakPasswordFailure();
+    }
+    if (msg.contains('same password') ||
+        msg.contains('different from the old password') ||
+        msg.contains('should be different')) {
+      return const SamePasswordFailure();
+    }
+    if (msg.contains('session_expired') || msg.contains('not authenticated')) {
+      return const SessionExpiredAuthFailure();
+    }
+    return _mapAuthException(e);
+  }
 
   /// OTP 검증 실패를 도메인 Failure로 변환.
   AuthFailure _mapOtpException(AuthException e) {
@@ -190,7 +221,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return const NetworkFailure();
     }
     if (msg.contains('session_expired')) {
-      return const UnknownAuthFailure();
+      return const SessionExpiredAuthFailure();
     }
 
     // ── HTTP 상태 코드 기반 분류 (1순위) ────────────────────────

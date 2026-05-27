@@ -63,6 +63,18 @@ class AuthErrorDialog extends StatelessWidget {
           icon: Icons.timer_off_outlined,
           title: '인증번호 만료',
         ),
+      WeakPasswordFailure() => const _DialogContent(
+          icon: Icons.lock_reset_outlined,
+          title: '비밀번호 강도 미달',
+        ),
+      SamePasswordFailure() => const _DialogContent(
+          icon: Icons.password_outlined,
+          title: '비밀번호 변경 불가',
+        ),
+      SessionExpiredAuthFailure() => const _DialogContent(
+          icon: Icons.login_outlined,
+          title: '세션 만료',
+        ),
       UnknownAuthFailure() => const _DialogContent(
           icon: Icons.error_outline,
           title: '오류 발생',
