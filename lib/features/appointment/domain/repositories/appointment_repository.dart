@@ -20,4 +20,7 @@ abstract interface class AppointmentRepository {
   Future<void> cancelAppointment(String appointmentId);
 
   Future<String?> getPlaceSuggestion(String appointmentId);
+
+  /// 장소 추천 요청: Edge Function 호출 후 appointments.suggested_place 저장
+  Future<String?> requestPlaceSuggestion(String appointmentId);
 }

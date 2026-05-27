@@ -20,4 +20,8 @@ abstract interface class AppointmentRemoteDataSource {
   Future<void> cancelAppointment(String appointmentId);
 
   Future<String?> getPlaceSuggestion(String appointmentId);
+
+  /// 장소 추천 요청: calculate-midpoint → recommend-place 순서로 Edge Function 호출 후
+  /// appointments.suggested_place에 결과 저장
+  Future<String?> requestPlaceSuggestion(String appointmentId);
 }

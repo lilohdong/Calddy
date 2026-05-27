@@ -49,6 +49,10 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
   Future<String?> getPlaceSuggestion(String appointmentId) =>
       _guard(() => _dataSource.getPlaceSuggestion(appointmentId));
 
+  @override
+  Future<String?> requestPlaceSuggestion(String appointmentId) =>
+      _guard(() => _dataSource.requestPlaceSuggestion(appointmentId));
+
   // ── Private helpers ────────────────────────────────────────────────────
 
   Future<T> _guard<T>(Future<T> Function() fn) async {

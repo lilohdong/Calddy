@@ -119,4 +119,44 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
         .single();
     return row['suggested_place'] as String?;
   }
+
+  @override
+  Future<String?> requestPlaceSuggestion(String appointmentId) async {
+    _uid;
+
+    // Step 1: 중간 지점 계산
+    final midpointRes = await _client.functions.invoke(
+      'calculate-midpoint',
+      body: {'appointment_id': appointmentId},
+    );
+    final midpointData = midpointRes.data;
+    if (midpointData is! Map<String, dynamic>) return null;
+
+    final lat = (midpointData['lat'] as num).toDouble();
+    final lng = (midpointData['lng'] as num).toDouble();
+    final participants = midpointData['participants'];
+    if (participants == null) return null;
+
+    // Step 2: 장소 추천
+    final placeRes = await _client.functions.invoke(
+      'recommend-place',
+      body: {'lat': lat, 'lng': lng, 'participants': participants},
+    );
+    final placeData = placeRes.data;
+    if (placeData is! Map<String, dynamic>) return null;
+
+    final placeName = placeData['name'] as String?;
+
+    // Step 3: appointments.suggested_place 업데이트
+    if (placeName != null) {
+      final updated = await _client
+          .from(SupabaseConstants.appointments)
+          .update({'suggested_place': placeName})
+          .eq('id', appointmentId)
+          .select('id');
+      if (updated.isEmpty) return null;
+    }
+
+    return placeName;
+  }
 }

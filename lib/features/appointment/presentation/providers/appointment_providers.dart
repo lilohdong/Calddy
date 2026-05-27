@@ -14,6 +14,7 @@ import '../../domain/usecases/get_appointment_use_case.dart';
 import '../../domain/usecases/get_my_invites_use_case.dart';
 import '../../domain/usecases/get_place_suggestion_use_case.dart';
 import '../../domain/usecases/reject_invite_use_case.dart';
+import '../../domain/usecases/request_place_suggestion_use_case.dart';
 import '../../../../core/usecase/usecase.dart';
 
 // 1. DataSource
@@ -48,6 +49,9 @@ final cancelAppointmentUseCaseProvider = Provider((ref) =>
 
 final getPlaceSuggestionUseCaseProvider = Provider((ref) =>
     GetPlaceSuggestionUseCase(ref.watch(appointmentRepositoryProvider)));
+
+final requestPlaceSuggestionUseCaseProvider = Provider((ref) =>
+    RequestPlaceSuggestionUseCase(ref.watch(appointmentRepositoryProvider)));
 
 // 4. 상태 Providers (UI가 watch)
 
