@@ -34,36 +34,38 @@ create or replace function private.send_push_notification(
 returns void
 language plpgsql
 security definer
-set search_path = public, net
+set search_path = public
 as $$
 declare
   v_url text := current_setting('app.settings.supabase_url', true);
   v_key text := current_setting('app.settings.service_role_key', true);
 begin
-  -- 1. notifications 행 INSERT (동기 — 트랜잭션 보장)
+  -- 1. notifications 행 INSERT (동기 — 실패 시 호출 트랜잭션 롤백)
   insert into public.notifications (user_id, type, title, body, related_id)
   values (p_user_id, p_type, p_title, p_body, p_related_id);
 
-  -- 2. Edge Function 비동기 호출 (설정 없으면 skip)
+  -- 2. Edge Function 비동기 호출 (best-effort — 실패해도 트랜잭션 롤백 없음)
   if v_url is not null and v_key is not null then
-    perform net.http_post(
-      url     := v_url || '/functions/v1/send-notification',
-      headers := jsonb_build_object(
-        'Content-Type',  'application/json',
-        'Authorization', 'Bearer ' || v_key
-      ),
-      body    := jsonb_build_object(
-        'userId',    p_user_id,
-        'type',      p_type::text,
-        'title',     p_title,
-        'body',      p_body,
-        'relatedId', p_related_id
-      )::text
-    );
+    begin
+      perform net.http_post(
+        url     := v_url || '/functions/v1/send-notification',
+        headers := jsonb_build_object(
+          'Content-Type',  'application/json',
+          'Authorization', 'Bearer ' || v_key
+        ),
+        body    := jsonb_build_object(
+          'userId',    p_user_id,
+          'type',      p_type::text,
+          'title',     p_title,
+          'body',      p_body,
+          'relatedId', p_related_id
+        )
+      );
+    exception
+      when others then
+        raise warning '[send_push_notification] pg_net failed: %', sqlerrm;
+    end;
   end if;
-exception
-  when others then
-    raise warning '[send_push_notification] failed: %', sqlerrm;
 end;
 $$;
 
@@ -335,7 +337,7 @@ create trigger trg_notify_comment
 -- GRANT
 -- ============================================================
 
-grant usage on schema private to postgres, supabase_admin;
+grant usage on schema private to postgres, supabase_admin, service_role;
 grant execute
   on function private.send_push_notification(uuid, public.notification_type, text, text, uuid)
-  to postgres, supabase_admin;
+  to postgres, supabase_admin, service_role;
