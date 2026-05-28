@@ -95,7 +95,8 @@ Deno.serve(async (req: Request) => {
     return errorResponse('Missing required fields: userId, type, title, body');
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  if (!supabaseUrl) return errorResponse('Supabase not configured', 500);
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
