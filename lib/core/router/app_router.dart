@@ -8,7 +8,12 @@ import '../../features/auth/presentation/pages/network_error_page.dart';
 import '../../features/auth/presentation/pages/onboarding_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
+import '../../features/appointment/presentation/pages/appointment_create_page.dart';
+import '../../features/appointment/presentation/pages/appointment_detail_page.dart';
 import '../../features/calendar/presentation/pages/calendar_page.dart';
+import '../../features/calendar/presentation/pages/drawing_page.dart';
+import '../../features/calendar/presentation/pages/event_create_page.dart';
+import '../../features/calendar/presentation/pages/event_detail_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
 import '../../features/feed/presentation/pages/post_create_page.dart';
 import '../../features/feed/presentation/pages/post_detail_page.dart';
@@ -17,7 +22,9 @@ import '../../features/friend/presentation/pages/friends_page.dart';
 import '../../features/friend/presentation/pages/merge_calendar_page.dart';
 import '../../features/map/presentation/pages/place_picker_page.dart';
 import '../../features/notification/presentation/pages/notifications_page.dart';
+import '../../features/user/presentation/pages/edit_profile_page.dart';
 import '../../features/user/presentation/pages/profile_page.dart';
+import '../../features/user/presentation/pages/settings_page.dart';
 import 'app_routes.dart';
 import 'main_shell.dart';
 
@@ -117,28 +124,28 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'event/create',
-                builder: (_, _) => const _PlaceholderPage(title: '일정 만들기'),
+                builder: (_, _) => const EventCreatePage(),
               ),
               GoRoute(
                 path: 'event/:eventId',
-                builder: (_, s) => _PlaceholderPage(
-                  title: '일정 상세 (${s.pathParameters['eventId']})',
+                builder: (_, s) => EventDetailPage(
+                  eventId: s.pathParameters['eventId']!,
                 ),
               ),
               GoRoute(
                 path: 'drawing/:date',
-                builder: (_, s) => _PlaceholderPage(
-                  title: '드로잉 (${s.pathParameters['date']})',
+                builder: (_, s) => DrawingPage(
+                  date: s.pathParameters['date']!,
                 ),
               ),
               GoRoute(
                 path: 'appointment/create',
-                builder: (_, _) => const _PlaceholderPage(title: '약속 만들기'),
+                builder: (_, _) => const AppointmentCreatePage(),
               ),
               GoRoute(
                 path: 'appointment/:appointmentId',
-                builder: (_, s) => _PlaceholderPage(
-                  title: '약속 상세 (${s.pathParameters['appointmentId']})',
+                builder: (_, s) => AppointmentDetailPage(
+                  appointmentId: s.pathParameters['appointmentId']!,
                 ),
               ),
             ],
@@ -183,11 +190,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'edit',
-                builder: (_, _) => const _PlaceholderPage(title: '프로필 편집'),
+                builder: (_, _) => const EditProfilePage(),
               ),
               GoRoute(
                 path: 'settings',
-                builder: (_, _) => const _PlaceholderPage(title: '설정'),
+                builder: (_, _) => const SettingsPage(),
               ),
             ],
           ),
@@ -214,16 +221,3 @@ final routerProvider = Provider<GoRouter>((ref) {
   return router;
 });
 
-/// 아직 구현되지 않은 페이지용 임시 플레이스홀더
-class _PlaceholderPage extends StatelessWidget {
-  const _PlaceholderPage({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(child: Text('$title 준비 중')),
-    );
-  }
-}
