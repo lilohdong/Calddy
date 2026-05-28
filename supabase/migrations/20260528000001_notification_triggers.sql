@@ -174,7 +174,7 @@ declare
   v_nickname   text;
   v_creator_id uuid;
 begin
-  if old.status = new.status then
+  if old.status is not distinct from new.status then
     return new;
   end if;
 
