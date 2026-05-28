@@ -24,6 +24,7 @@ abstract class AppRoutes {
   // ── Feed ────────────────────────────────────────────────────
   static const String postDetail      = '/feed/post/:postId';
   static const String postCreate      = '/feed/post/create';
+  static const String postEdit        = '/feed/post/:postId/edit';
 
   // ── Friend ──────────────────────────────────────────────────
   static const String friendCalendar  = '/friends/:friendId/calendar';

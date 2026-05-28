@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/calddy_logo.dart';
 
 // ── 색상 상수 ────────────────────────────────────────────────────────────────
 
@@ -29,10 +30,8 @@ class AuthLogoBox extends StatelessWidget {
           ),
         ],
       ),
-      child: Icon(
-        Icons.all_inclusive_rounded,
-        color: kAuthPurple,
-        size: size * 0.52,
+      child: Center(
+        child: CaldyLogo(size: size * 0.46),
       ),
     );
   }

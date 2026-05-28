@@ -17,6 +17,8 @@ import '../../features/calendar/presentation/pages/event_detail_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
 import '../../features/feed/presentation/pages/post_create_page.dart';
 import '../../features/feed/presentation/pages/post_detail_page.dart';
+import '../../features/feed/presentation/pages/post_edit_page.dart';
+import '../../features/feed/domain/entities/post_entity.dart';
 import '../../features/friend/presentation/pages/friend_calendar_page.dart';
 import '../../features/friend/presentation/pages/friends_page.dart';
 import '../../features/friend/presentation/pages/merge_calendar_page.dart';
@@ -64,11 +66,11 @@ class _RouterNotifier extends ChangeNotifier {
       return AppRoutes.onboarding;
     }
 
-    // 로그인 + 온보딩 완료 → 인증 경로에 있으면 홈으로
+    // 로그인 + 온보딩 완료 → 인증 경로에 있으면 피드(홈탭)으로
     if (location == AppRoutes.splash ||
         location.startsWith(AppRoutes.login) ||
         location == AppRoutes.onboarding) {
-      return AppRoutes.home;
+      return AppRoutes.feed;
     }
 
     return null;
@@ -162,7 +164,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'post/:postId',
                 builder: (_, s) => PostDetailPage(
                   postId: s.pathParameters['postId']!,
+                  post: s.extra as PostEntity?,
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'edit',
+                    builder: (_, s) => PostEditPage(
+                      post: s.extra as PostEntity,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
