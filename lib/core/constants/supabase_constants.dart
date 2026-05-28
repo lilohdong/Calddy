@@ -33,13 +33,18 @@ class SupabaseConstants {
   static const String _prodAnonKey = String.fromEnvironment('SUPABASE_PROD_ANON_KEY');
 
   // Android 에뮬레이터에서 127.0.0.1 → 10.0.2.2 자동 변환
+  // (--dart-define 미설정 fallback 포함)
   static String get _localUrl {
     if (kIsWeb) return _envUrl.isNotEmpty ? _envUrl : 'http://127.0.0.1:54321';
+    // --dart-define 미설정이면 로컬 기본값 사용
+    final resolved =
+        _envUrl.isNotEmpty ? _envUrl : 'http://127.0.0.1:54321';
+    // Android 에뮬레이터는 호스트 PC를 10.0.2.2 로 접근해야 함
     if (defaultTargetPlatform == TargetPlatform.android &&
-        _envUrl.contains('127.0.0.1')) {
-      return _envUrl.replaceAll('127.0.0.1', '10.0.2.2');
+        resolved.contains('127.0.0.1')) {
+      return resolved.replaceAll('127.0.0.1', '10.0.2.2');
     }
-    return _envUrl.isNotEmpty ? _envUrl : 'http://127.0.0.1:54321';
+    return resolved;
   }
 
   /// 빌드 모드에 따라 적절한 URL 반환.
