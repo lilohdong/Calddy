@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/post_entity.dart';
@@ -42,7 +43,7 @@ class _PostCreatePageState extends ConsumerState<PostCreatePage> {
               feedDate: DateTime.now(),
             ),
           );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) context.pop();
     } on FeedFailure catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

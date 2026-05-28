@@ -208,7 +208,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.placePicker,
-        builder: (_, _) => const PlacePickerPage(),
+        builder: (_, s) => PlacePickerPage(
+          appointmentId: s.extra as String?,
+        ),
       ),
     ],
   );
