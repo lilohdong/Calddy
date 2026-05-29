@@ -25,6 +25,8 @@ abstract class AppRoutes {
   static const String record           = '/home/event/:eventId/record';
   static const String aiMidpoint       = '/map/ai-midpoint';
 
+  /// 런타임 경로 헬퍼 — :eventId 치환 (하드코딩 금지)
+  static String eventDetailPath(String eventId) => '/home/event/$eventId';
   static String recordPath(String eventId) => '/home/event/$eventId/record';
 
   // ── Feed ────────────────────────────────────────────────────

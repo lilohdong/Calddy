@@ -115,7 +115,7 @@ class DateBottomSheet extends ConsumerWidget {
                       onTap: () {
                         Navigator.of(context).pop();
                         context.push(
-                            '/home/event/${events[i].id}');
+                            AppRoutes.eventDetailPath(events[i].id));
                       },
                     ),
                   );
