@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import '../../../../core/router/app_routes.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../notification/presentation/providers/notification_providers.dart';
 import '../providers/calendar_providers.dart';
 import '../widgets/calendar_grid_widget.dart';
 import '../widgets/date_bottom_sheet.dart';
@@ -81,6 +82,10 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final calendarAsync = ref.watch(calendarDataProvider);
     final user = ref.watch(currentUserProvider);
     final selectedMonth = ref.watch(selectedMonthProvider);
+    final hasUnread = ref.watch(notificationsProvider).maybeWhen(
+      data: (list) => list.any((n) => !n.isRead),
+      orElse: () => false,
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -140,18 +145,19 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                     color: Colors.black87),
                 onPressed: () => context.push(AppRoutes.notifications),
               ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
+              if (hasUnread)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(width: 4),
