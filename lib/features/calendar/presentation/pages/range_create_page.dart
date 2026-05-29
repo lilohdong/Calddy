@@ -61,6 +61,7 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                 endAt: _endDate!,
                 color: _color,
                 isDday: false,
+                notifyBeforeMin: _notifyBeforeMin,
                 status: EventStatus.pending,
                 visibility: EventVisibility.public,
                 createdAt: now,
@@ -87,6 +88,67 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  int? _notifyBeforeMin = 60;
+
+  void _showAlarmPicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) {
+        const options = [
+          (label: '없음', minutes: null as int?),
+          (label: '5분 전', minutes: 5 as int?),
+          (label: '15분 전', minutes: 15 as int?),
+          (label: '30분 전', minutes: 30 as int?),
+          (label: '1시간 전', minutes: 60 as int?),
+          (label: '1일 전', minutes: 1440 as int?),
+        ];
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text('알림 설정',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ...options.map((opt) => ListTile(
+                    title: Text(opt.label),
+                    trailing: _notifyBeforeMin == opt.minutes
+                        ? const Icon(Icons.check, color: Color(0xFF7C6AFA))
+                        : null,
+                    onTap: () {
+                      setState(() => _notifyBeforeMin = opt.minutes);
+                      Navigator.of(context).pop();
+                    },
+                  )),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _alarmLabel() {
+    if (_notifyBeforeMin == null) return '없음';
+    if (_notifyBeforeMin == 5) return '5분 전';
+    if (_notifyBeforeMin == 15) return '15분 전';
+    if (_notifyBeforeMin == 30) return '30분 전';
+    if (_notifyBeforeMin == 60) return '1시간 전';
+    if (_notifyBeforeMin == 1440) return '1일 전';
+    return '$_notifyBeforeMin분 전';
   }
 
   String _fmtDate(DateTime? dt) {
@@ -216,12 +278,17 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
           const SizedBox(height: 4),
 
           // 알림
-          _RowTile(
-            icon: Icons.alarm_outlined,
-            trailing: const Text('09:00',
-                style: TextStyle(fontSize: 14, color: Colors.grey)),
-            child: const Text('알림 시간',
-                style: TextStyle(fontSize: 14, color: Colors.grey)),
+          GestureDetector(
+            onTap: _showAlarmPicker,
+            child: _RowTile(
+              icon: Icons.alarm_outlined,
+              trailing: Text(
+                _alarmLabel(),
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              child: const Text('알림',
+                  style: TextStyle(fontSize: 14, color: Colors.black87)),
+            ),
           ),
           const SizedBox(height: 32),
         ],
