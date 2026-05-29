@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../domain/entities/event_entity.dart';
 import '../../domain/usecases/create_event_usecase.dart';
 import '../providers/calendar_providers.dart';
+import '../widgets/color_picker_row.dart';
 
 class EventCreatePage extends ConsumerStatefulWidget {
   const EventCreatePage({super.key});
@@ -26,15 +27,6 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
       DateTime.now().copyWith(second: 0, millisecond: 0).add(const Duration(hours: 1));
   String _color = '#7C6AFA';
   bool _isLoading = false;
-
-  static const _colorOptions = [
-    '#7C6AFA',
-    '#FC8181',
-    '#68D391',
-    '#63B3ED',
-    '#F6AD55',
-    '#B794F4',
-  ];
 
   @override
   void dispose() {
@@ -90,8 +82,19 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('일정 만들기'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.black87),
+          onPressed: () => context.pop(),
+        ),
+        title: const Text(
+          '일정 추가',
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
         actions: [
           TextButton(
             onPressed: _isLoading ? null : _submit,
@@ -101,117 +104,157 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('저장'),
+                : const Text(
+                    '저장',
+                    style: TextStyle(
+                        color: Color(0xFF7C6AFA),
+                        fontWeight: FontWeight.w600),
+                  ),
           ),
         ],
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           children: [
             // 제목
-            const _Label('제목'),
-            const SizedBox(height: 6),
             TextFormField(
               controller: _titleCtrl,
+              style: const TextStyle(fontSize: 18),
               decoration: const InputDecoration(
-                hintText: '일정 이름을 입력하세요',
-                border: OutlineInputBorder(),
+                hintText: '제목을 입력하세요',
+                hintStyle: TextStyle(fontSize: 18, color: Colors.grey),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
               ),
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? '제목을 입력해주세요' : null,
             ),
-            const SizedBox(height: 20),
-
-            // 시작
-            const _Label('시작'),
-            const SizedBox(height: 6),
-            _DateTimePicker(
-              value: _startAt,
-              onChanged: (dt) => setState(() => _startAt = dt),
-            ),
-            const SizedBox(height: 16),
-
-            // 종료
-            const _Label('종료'),
-            const SizedBox(height: 6),
-            _DateTimePicker(
-              value: _endAt,
-              onChanged: (dt) => setState(() => _endAt = dt),
-            ),
-            const SizedBox(height: 20),
-
-            // 색상
-            const _Label('색상'),
+            const Divider(),
             const SizedBox(height: 8),
-            Row(
-              children: _colorOptions.map((hex) {
-                final c = Color(int.parse(hex.replaceFirst('#', '0xFF')));
-                final isSelected = _color == hex;
-                return GestureDetector(
-                  onTap: () => setState(() => _color = hex),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 36,
-                    height: 36,
-                    margin: const EdgeInsets.only(right: 10),
-                    decoration: BoxDecoration(
-                      color: c,
-                      shape: BoxShape.circle,
-                      border: isSelected
-                          ? Border.all(color: Colors.white, width: 3)
-                          : null,
-                      boxShadow: isSelected
-                          ? [BoxShadow(color: c.withOpacity(0.5), blurRadius: 8)]
-                          : null,
-                    ),
-                    child: isSelected
-                        ? const Icon(Icons.check, color: Colors.white, size: 18)
-                        : null,
-                  ),
-                );
-              }).toList(),
+
+            // 컬러 설정
+            _SectionLabel('컬러 설정'),
+            const SizedBox(height: 10),
+            ColorPickerRow(
+              selected: _color,
+              onChanged: (hex) => setState(() => _color = hex),
             ),
             const SizedBox(height: 20),
 
-            // 장소
-            const _Label('장소 (선택)'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _locationCtrl,
-              decoration: const InputDecoration(
-                hintText: '장소를 입력하세요',
-                prefixIcon: Icon(Icons.location_on_outlined),
-                border: OutlineInputBorder(),
+            // 시작/종료
+            _SettingTile(
+              icon: Icons.access_time_outlined,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DateTimePicker(
+                    label: '시작',
+                    value: _startAt,
+                    onChanged: (dt) => setState(() => _startAt = dt),
+                  ),
+                  const SizedBox(height: 8),
+                  _DateTimePicker(
+                    label: '종료',
+                    value: _endAt,
+                    onChanged: (dt) => setState(() => _endAt = dt),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 4),
+
+            // 장소
+            _SettingTile(
+              icon: Icons.location_on_outlined,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _locationCtrl,
+                      decoration: const InputDecoration(
+                        hintText: '장소 설정',
+                        border: InputBorder.none,
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.push(AppRoutes.aiMidpoint),
+                    style: TextButton.styleFrom(
+                      backgroundColor:
+                          const Color(0xFF7C6AFA).withValues(alpha: 0.1),
+                      foregroundColor: const Color(0xFF7C6AFA),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
+                    child: const Text('*AI 중간지점'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            // 알림
+            _SettingTile(
+              icon: Icons.alarm_outlined,
+              label: '알림 설정',
+              trailing: const Text('09:00',
+                  style: TextStyle(color: Colors.grey, fontSize: 14)),
+            ),
+            const SizedBox(height: 4),
+
+            // 반복
+            _SettingTile(
+              icon: Icons.repeat_outlined,
+              label: '반복 설정',
+              trailing: const Text('없음',
+                  style: TextStyle(color: Colors.grey, fontSize: 14)),
+            ),
+            const SizedBox(height: 4),
+
+            // D-Day
+            _SettingTile(
+              icon: Icons.star_border_outlined,
+              label: 'D-Day 설정',
+              trailing: Switch(
+                value: false,
+                onChanged: (_) {},
+                activeThumbColor: const Color(0xFF7C6AFA),
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            // 친구 태그
+            _SettingTile(
+              icon: Icons.person_add_alt_outlined,
+              child: TextFormField(
+                decoration: const InputDecoration(
+                  hintText: '친구를 태그하세요',
+                  border: InputBorder.none,
+                  isDense: true,
+                  suffixText: '@',
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
 
             // 메모
-            const _Label('메모 (선택)'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _memoCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: '메모를 입력하세요',
-                border: OutlineInputBorder(),
+            _SettingTile(
+              icon: Icons.edit_note_outlined,
+              child: TextFormField(
+                controller: _memoCtrl,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: '메모를 입력하세요',
+                  border: InputBorder.none,
+                  isDense: true,
+                ),
               ),
             ),
             const SizedBox(height: 32),
-
-            ElevatedButton(
-              onPressed: _isLoading ? null : _submit,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('일정 저장'),
-            ),
           ],
         ),
       ),
@@ -219,17 +262,66 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   }
 }
 
-class _Label extends StatelessWidget {
-  const _Label(this.text);
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
   final String text;
 
   @override
-  Widget build(BuildContext context) =>
-      Text(text, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13));
+  Widget build(BuildContext context) => Text(
+        text,
+        style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87),
+      );
+}
+
+class _SettingTile extends StatelessWidget {
+  const _SettingTile({
+    required this.icon,
+    this.label,
+    this.child,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String? label;
+  final Widget? child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: Colors.grey.shade600),
+            const SizedBox(width: 12),
+            Expanded(
+              child: child ??
+                  Text(label ?? '',
+                      style: const TextStyle(fontSize: 14)),
+            ),
+            ?trailing,
+          ],
+        ),
+      );
+  }
 }
 
 class _DateTimePicker extends StatelessWidget {
-  const _DateTimePicker({required this.value, required this.onChanged});
+  const _DateTimePicker({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+  final String label;
   final DateTime value;
   final ValueChanged<DateTime> onChanged;
 
@@ -249,25 +341,19 @@ class _DateTimePicker extends StatelessWidget {
           initialTime: TimeOfDay.fromDateTime(value),
         );
         if (time == null) return;
-        onChanged(
-            date.copyWith(hour: time.hour, minute: time.minute, second: 0));
+        onChanged(date.copyWith(
+            hour: time.hour, minute: time.minute, second: 0));
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade400),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.calendar_today_outlined, size: 18, color: Colors.grey),
-            const SizedBox(width: 10),
-            Text(
-              DateFormat('yyyy년 MM월 dd일  HH:mm').format(value),
-              style: const TextStyle(fontSize: 15),
-            ),
-          ],
-        ),
+      child: Row(
+        children: [
+          Text(label,
+              style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(width: 8),
+          Text(
+            '${value.month}월 ${value.day}일 ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}',
+            style: const TextStyle(fontSize: 14),
+          ),
+        ],
       ),
     );
   }
