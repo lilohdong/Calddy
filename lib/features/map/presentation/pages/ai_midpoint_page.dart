@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class AiMidpointPage extends StatefulWidget {
-  const AiMidpointPage({super.key});
+import '../../../friend/domain/entities/friend_entity.dart';
+import '../../../friend/presentation/providers/friend_providers.dart';
+
+class AiMidpointPage extends ConsumerStatefulWidget {
+  const AiMidpointPage({super.key, this.friendId});
+  final String? friendId;
 
   @override
-  State<AiMidpointPage> createState() => _AiMidpointPageState();
+  ConsumerState<AiMidpointPage> createState() => _AiMidpointPageState();
 }
 
-class _AiMidpointPageState extends State<AiMidpointPage> {
+class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
+  // 0: 대기 중 (친구 응답 기다림), 1: 결과 표시
+  int _step = 0;
+  String _myLocation = '';
   String _calcBasis = '대중교통 최적화';
   int _selectedIndex = 0;
 
@@ -22,6 +30,17 @@ class _AiMidpointPageState extends State<AiMidpointPage> {
 
   @override
   Widget build(BuildContext context) {
+    final friendsAsync = widget.friendId != null
+        ? ref.watch(friendsProvider(FriendSortType.alphabetical))
+        : const AsyncValue<List<FriendEntity>>.data([]);
+
+    final FriendEntity? taggedFriend = friendsAsync.maybeWhen(
+      data: (list) => list
+          .where((f) => f.friendId == widget.friendId)
+          .firstOrNull,
+      orElse: () => null,
+    );
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -35,273 +54,475 @@ class _AiMidpointPageState extends State<AiMidpointPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: const Color(0xFF7C6AFA).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Text(
-                '*AI',
-                style: TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF7C6AFA),
-                    fontWeight: FontWeight.bold),
-              ),
+              child: const Text('*AI',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF7C6AFA),
+                      fontWeight: FontWeight.bold)),
             ),
             const SizedBox(width: 6),
-            const Text(
-              '중간지점 검색',
-              style: TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16),
-            ),
+            const Text('중간지점 검색',
+                style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16)),
           ],
         ),
         centerTitle: true,
         actions: [
-          TextButton(
-            onPressed: () {
-              final place = _mockPlaces[_selectedIndex];
-              context.pop(place.name);
-            },
-            child: const Text(
-              '✓',
-              style: TextStyle(
-                  color: Color(0xFF7C6AFA),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold),
+          if (_step == 1)
+            TextButton(
+              onPressed: () {
+                final place = _mockPlaces[_selectedIndex];
+                context.pop(place.name);
+              },
+              child: const Text('✓',
+                  style: TextStyle(
+                      color: Color(0xFF7C6AFA),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold)),
             ),
-          ),
         ],
       ),
-      body: Column(
+      body: _step == 0
+          ? _buildWaitingStep(taggedFriend)
+          : _buildResultStep(),
+    );
+  }
+
+  // ── Step 0: 대기 화면 ──────────────────────────────────────────────
+  Widget _buildWaitingStep(FriendEntity? friend) {
+    final friendName = friend?.friendProfile.nickname ?? '친구';
+    final friendAvatar = friend?.friendProfile.avatarUrl;
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // 지도 플레이스홀더
+          const SizedBox(height: 32),
+          // 친구 아바타
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF7C6AFA).withValues(alpha: 0.1),
+                ),
+              ),
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF7C6AFA).withValues(alpha: 0.2),
+                ),
+              ),
+              CircleAvatar(
+                radius: 32,
+                backgroundColor:
+                    const Color(0xFF7C6AFA).withValues(alpha: 0.3),
+                backgroundImage: friendAvatar != null
+                    ? NetworkImage(friendAvatar)
+                    : null,
+                child: friendAvatar == null
+                    ? Text(
+                        friendName[0],
+                        style: const TextStyle(
+                            fontSize: 28,
+                            color: Color(0xFF7C6AFA),
+                            fontWeight: FontWeight.bold),
+                      )
+                    : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            '$friendName님에게 알림을 보냈어요',
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '출발 장소 설정을 기다리고 있습니다...',
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 40),
+
+          // 내 출발지 설정
           Container(
-            height: 220,
-            color: const Color(0xFFE8F0FE),
-            child: Stack(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F7FB),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Center(child: Text('🗺️', style: TextStyle(fontSize: 60))),
-                Positioned(
-                  left: 60,
-                  bottom: 60,
-                  child: _MapPin(label: '나·강남역', color: const Color(0xFF7C6AFA)),
-                ),
-                Positioned(
-                  right: 60,
-                  top: 40,
-                  child: _MapPin(label: 'Friend(B)·잠실역', color: const Color(0xFFFF9800)),
-                ),
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7C6AFA),
-                      borderRadius: BorderRadius.circular(12),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: const Color(0xFF7C6AFA),
+                      child: const Text('나',
+                          style: TextStyle(
+                              fontSize: 10, color: Colors.white)),
                     ),
-                    child: const Text(
-                      '+ AI 추천 중간지점',
-                      style: TextStyle(color: Colors.white, fontSize: 11),
+                    const SizedBox(width: 8),
+                    const Text('내 출발 장소',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  onChanged: (v) => setState(() => _myLocation = v),
+                  decoration: InputDecoration(
+                    hintText: '출발 장소를 입력하세요 (예: 강남역)',
+                    hintStyle: TextStyle(
+                        color: Colors.grey.shade400, fontSize: 13),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                          color: Colors.grey.shade200),
                     ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                          color: Colors.grey.shade200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: Color(0xFF7C6AFA)),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    prefixIcon: const Icon(Icons.location_on_outlined,
+                        size: 18, color: Color(0xFF7C6AFA)),
                   ),
                 ),
               ],
             ),
           ),
-          // 하단 패널
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  // 참가자
-                  const Text('참가자',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _ParticipantChip(
-                          initial: '나', label: '강남역', color: const Color(0xFF7C6AFA)),
-                      const SizedBox(width: 8),
-                      _ParticipantChip(
-                          initial: 'B', label: '잠실역', color: const Color(0xFFFF9800)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-                  // 계산 기준
-                  const Text('계산 기준',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: _calcOptions.map((opt) {
-                        final isSelected = _calcBasis == opt;
-                        return GestureDetector(
-                          onTap: () => setState(() => _calcBasis = opt),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 8),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFF7C6AFA)
-                                  : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              opt,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isSelected ? Colors.white : Colors.black87,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 추천 중간지점
-                  const Text('추천 중간지점',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  ..._mockPlaces.asMap().entries.map((e) {
-                    final i = e.key;
-                    final p = e.value;
-                    final isSelected = _selectedIndex == i;
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedIndex = i),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFF7C6AFA).withValues(alpha: 0.08)
-                              : const Color(0xFFF5F5F5),
-                          borderRadius: BorderRadius.circular(12),
-                          border: isSelected
-                              ? Border.all(
-                                  color: const Color(0xFF7C6AFA), width: 1.5)
-                              : null,
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? const Color(0xFF7C6AFA)
-                                    : Colors.grey.shade300,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '${p.rank}',
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.grey,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(p.name,
-                                      style: const TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600)),
-                                  Text(
-                                    '${p.lines} · 대중교통 이동 최적 (평균 ${p.avgMinutes}분)',
-                                    style: const TextStyle(
-                                        fontSize: 11, color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 16),
-
-                  // 하단 버튼
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => context.pop(),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.grey.shade300),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: const Text('이전으로',
-                              style: TextStyle(color: Colors.black87)),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            final place = _mockPlaces[_selectedIndex];
-                            context.pop(place.name);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF7C6AFA),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: const Text('이 장소로 설정'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+          // 친구 출발지 대기 표시
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F7FB),
+              borderRadius: BorderRadius.circular(16),
             ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 12,
+                  backgroundColor:
+                      const Color(0xFF7C6AFA).withValues(alpha: 0.2),
+                  backgroundImage: friendAvatar != null
+                      ? NetworkImage(friendAvatar)
+                      : null,
+                  child: friendAvatar == null
+                      ? Text(
+                          friendName[0],
+                          style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF7C6AFA),
+                              fontWeight: FontWeight.bold),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$friendName님의 출발 장소',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text('설정 기다리는 중...',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade400)),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+
+          // 계산하기 버튼 (출발지 입력 후 활성화)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _myLocation.trim().isEmpty
+                  ? null
+                  : () => setState(() => _step = 1),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7C6AFA),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade200,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text('중간지점 계산하기',
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => context.pop(),
+            child: Text('취소하기',
+                style: TextStyle(
+                    color: Colors.grey.shade400, fontSize: 13)),
           ),
         ],
       ),
+    );
+  }
+
+  // ── Step 1: 결과 화면 ──────────────────────────────────────────────
+  Widget _buildResultStep() {
+    return Column(
+      children: [
+        // 지도 플레이스홀더
+        Container(
+          height: 180,
+          color: const Color(0xFFE8F0FE),
+          child: Stack(
+            children: [
+              const Center(
+                  child: Text('🗺️', style: TextStyle(fontSize: 60))),
+              Positioned(
+                left: 60,
+                bottom: 50,
+                child: _MapPin(
+                    label: '나·${_myLocation.isEmpty ? '내 위치' : _myLocation}',
+                    color: const Color(0xFF7C6AFA)),
+              ),
+              const Positioned(
+                right: 60,
+                top: 40,
+                child: _MapPin(
+                    label: 'Friend·출발지',
+                    color: Color(0xFFFF9800)),
+              ),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C6AFA),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text('+ AI 추천 중간지점',
+                      style: TextStyle(
+                          color: Colors.white, fontSize: 11)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              const Text('계산 기준',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey)),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _calcOptions.map((opt) {
+                    final isSelected = _calcBasis == opt;
+                    return GestureDetector(
+                      onTap: () =>
+                          setState(() => _calcBasis = opt),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF7C6AFA)
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(opt,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.black87,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            )),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('추천 중간지점',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey)),
+              const SizedBox(height: 8),
+              ..._mockPlaces.asMap().entries.map((e) {
+                final i = e.key;
+                final p = e.value;
+                final isSelected = _selectedIndex == i;
+                return GestureDetector(
+                  onTap: () =>
+                      setState(() => _selectedIndex = i),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF7C6AFA)
+                              .withValues(alpha: 0.08)
+                          : const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: isSelected
+                          ? Border.all(
+                              color: const Color(0xFF7C6AFA),
+                              width: 1.5)
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF7C6AFA)
+                                : Colors.grey.shade300,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text('${p.rank}',
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.grey,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                )),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(p.name,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight:
+                                          FontWeight.w600)),
+                              Text(
+                                '${p.lines} · 평균 ${p.avgMinutes}분',
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () =>
+                          setState(() => _step = 0),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                            color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14),
+                      ),
+                      child: const Text('이전으로',
+                          style: TextStyle(
+                              color: Colors.black87)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final place =
+                            _mockPlaces[_selectedIndex];
+                        context.pop(place.name);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            const Color(0xFF7C6AFA),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14),
+                      ),
+                      child: const Text('이 장소로 설정'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -330,50 +551,18 @@ class _MapPin extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text(label,
-              style: const TextStyle(color: Colors.white, fontSize: 10)),
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 10)),
         ),
         Container(width: 2, height: 10, color: color),
       ],
-    );
-  }
-}
-
-class _ParticipantChip extends StatelessWidget {
-  const _ParticipantChip(
-      {required this.initial, required this.label, required this.color});
-  final String initial;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            radius: 10,
-            backgroundColor: color,
-            child: Text(initial,
-                style: const TextStyle(color: Colors.white, fontSize: 10)),
-          ),
-          const SizedBox(width: 6),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12, color: color, fontWeight: FontWeight.w500)),
-        ],
-      ),
     );
   }
 }

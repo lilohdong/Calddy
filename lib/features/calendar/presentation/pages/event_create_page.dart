@@ -9,6 +9,8 @@ import '../../domain/entities/event_entity.dart';
 import '../../domain/usecases/create_event_usecase.dart';
 import '../providers/calendar_providers.dart';
 import '../widgets/color_picker_row.dart';
+import '../../../friend/domain/entities/friend_entity.dart';
+import '../../../friend/presentation/providers/friend_providers.dart';
 
 class EventCreatePage extends ConsumerStatefulWidget {
   const EventCreatePage({super.key});
@@ -32,6 +34,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   bool _isDday = false;
   int? _notifyBeforeMin = 60;
   RecurrenceType? _recurrenceType;
+  FriendEntity? _taggedFriend;
 
   @override
   void dispose() {
@@ -184,6 +187,21 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
     );
   }
 
+  void _showFriendPicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _FriendPickerSheet(
+        onSelected: (friend) {
+          setState(() => _taggedFriend = friend);
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+  }
+
   String _alarmLabel() {
     if (_notifyBeforeMin == null) return '없음';
     if (_notifyBeforeMin == 5) return '5분 전';
@@ -308,20 +326,72 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                       ),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => context.push(AppRoutes.aiMidpoint),
-                    style: TextButton.styleFrom(
-                      backgroundColor:
-                          const Color(0xFF7C6AFA).withValues(alpha: 0.1),
-                      foregroundColor: const Color(0xFF7C6AFA),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      textStyle: const TextStyle(fontSize: 12),
+                  if (_taggedFriend != null)
+                    TextButton(
+                      onPressed: () async {
+                        final result = await context.push<String>(
+                          AppRoutes.aiMidpoint,
+                          extra: _taggedFriend!.friendId,
+                        );
+                        if (result != null && mounted) {
+                          setState(() => _locationCtrl.text = result);
+                        }
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor:
+                            const Color(0xFF7C6AFA).withValues(alpha: 0.1),
+                        foregroundColor: const Color(0xFF7C6AFA),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
+                      child: const Text('*AI 중간지점'),
                     ),
-                    child: const Text('*AI 중간지점'),
-                  ),
                 ],
               ),
+            ),
+            const SizedBox(height: 8),
+
+            // 친구 태그
+            _SettingCard(
+              icon: Icons.person_add_alt_outlined,
+              onTap: _showFriendPicker,
+              child: _taggedFriend == null
+                  ? const Text('친구를 태그하세요',
+                      style: TextStyle(fontSize: 14, color: Colors.grey))
+                  : Row(
+                      children: [
+                        if (_taggedFriend!.friendProfile.avatarUrl != null)
+                          CircleAvatar(
+                            radius: 12,
+                            backgroundImage: NetworkImage(
+                                _taggedFriend!.friendProfile.avatarUrl!),
+                          )
+                        else
+                          CircleAvatar(
+                            radius: 12,
+                            backgroundColor: const Color(0xFF7C6AFA)
+                                .withValues(alpha: 0.2),
+                            child: Text(
+                              (_taggedFriend!.friendProfile.nickname ?? '?')[0],
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF7C6AFA),
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        const SizedBox(width: 8),
+                        Text(_taggedFriend!.friendProfile.nickname ?? '',
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w500)),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => setState(() => _taggedFriend = null),
+                          child: const Icon(Icons.close,
+                              size: 16, color: Colors.grey),
+                        ),
+                      ],
+                    ),
             ),
             const SizedBox(height: 8),
 
@@ -526,6 +596,100 @@ class _DateTimeRow extends StatelessWidget {
                     fontSize: 13,
                     color: Color(0xFF7C6AFA),
                     fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 친구 선택 바텀시트 ──────────────────────────────────────────────
+
+class _FriendPickerSheet extends ConsumerWidget {
+  const _FriendPickerSheet({required this.onSelected});
+  final ValueChanged<FriendEntity> onSelected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final friendsAsync = ref.watch(
+        friendsProvider(FriendSortType.alphabetical));
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (_, scrollCtrl) => Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text('친구 태그',
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Expanded(
+            child: friendsAsync.when(
+              loading: () => const Center(
+                  child: CircularProgressIndicator()),
+              error: (_, __) => const Center(
+                  child: Text('친구 목록을 불러오지 못했어요')),
+              data: (friends) {
+                if (friends.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.people_outline,
+                            size: 48,
+                            color: Colors.grey.shade300),
+                        const SizedBox(height: 8),
+                        Text('아직 친구가 없어요',
+                            style: TextStyle(
+                                color: Colors.grey.shade400)),
+                      ],
+                    ),
+                  );
+                }
+                return ListView.separated(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 8),
+                  itemCount: friends.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final f = friends[i];
+                    return ListTile(
+                      leading: f.friendProfile.avatarUrl != null
+                          ? CircleAvatar(
+                              backgroundImage: NetworkImage(
+                                  f.friendProfile.avatarUrl!),
+                            )
+                          : CircleAvatar(
+                              backgroundColor: const Color(0xFF7C6AFA)
+                                  .withValues(alpha: 0.2),
+                              child: Text(
+                                (f.friendProfile.nickname ?? '?')[0],
+                                style: const TextStyle(
+                                    color: Color(0xFF7C6AFA),
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                      title: Text(f.friendProfile.nickname ?? ''),
+                      onTap: () => onSelected(f),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),

@@ -264,7 +264,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.aiMidpoint,
-        builder: (_, _) => const AiMidpointPage(),
+        builder: (_, s) => AiMidpointPage(
+          friendId: s.extra as String?,
+        ),
       ),
     ],
   );
