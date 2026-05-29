@@ -21,6 +21,11 @@ abstract class AppRoutes {
   static const String eventDetail      = '/home/event/:eventId';
   static const String eventCreate      = '/home/event/create';
   static const String drawing          = '/home/drawing/:date';
+  static const String rangeCreate      = '/home/range/create';
+  static const String record           = '/home/event/:eventId/record';
+  static const String aiMidpoint       = '/map/ai-midpoint';
+
+  static String recordPath(String eventId) => '/home/event/$eventId/record';
 
   // ── Feed ────────────────────────────────────────────────────
   static const String postDetail       = '/feed/post/:postId';

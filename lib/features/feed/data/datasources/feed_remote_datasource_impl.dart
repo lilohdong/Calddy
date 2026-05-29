@@ -84,7 +84,7 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
         .maybeSingle();
 
     return PostModel.fromJson(
-      result as Map<String, dynamic>,
+      result,
       isLikedByMe: likedResult != null,
     );
   }
