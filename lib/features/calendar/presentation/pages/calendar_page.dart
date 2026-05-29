@@ -57,7 +57,23 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   String _headerTitle() {
     final m = ref.watch(selectedMonthProvider);
-    return '${m.year}-${m.month.toString().padLeft(2, '0')}';
+    return '${m.year}년 ${m.month}월';
+  }
+
+  void _showYearMonthPicker() {
+    final current = ref.read(selectedMonthProvider);
+    showDialog(
+      context: context,
+      builder: (ctx) => _YearMonthPickerDialog(
+        initialYear: current.year,
+        initialMonth: current.month,
+        onSelected: (year, month) {
+          ref.read(selectedMonthProvider.notifier).state =
+              DateTime(year, month);
+          Navigator.of(ctx).pop();
+        },
+      ),
+    );
   }
 
   @override
@@ -84,12 +100,15 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                   color: Colors.black87, size: 22),
             ),
             const SizedBox(width: 4),
-            Text(
-              _headerTitle(),
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+            GestureDetector(
+              onTap: _showYearMonthPicker,
+              child: Text(
+                _headerTitle(),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
             ),
             const SizedBox(width: 4),
@@ -143,12 +162,162 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             const Center(child: CircularProgressIndicator()),
         error: (e, _) =>
             Center(child: Text('불러오기 실패: $e')),
-        data: (data) => CalendarGridWidget(
-          year: selectedMonth.year,
-          month: selectedMonth.month,
-          data: data,
-          selectedDay: _selectedDay,
-          onDaySelected: _onDaySelected,
+        data: (data) => GestureDetector(
+          onHorizontalDragEnd: (details) {
+            if (details.primaryVelocity == null) return;
+            final selectedMonth = ref.read(selectedMonthProvider);
+            if (details.primaryVelocity! < -200) {
+              ref.read(selectedMonthProvider.notifier).state =
+                  DateTime(selectedMonth.year, selectedMonth.month + 1);
+            } else if (details.primaryVelocity! > 200) {
+              ref.read(selectedMonthProvider.notifier).state =
+                  DateTime(selectedMonth.year, selectedMonth.month - 1);
+            }
+          },
+          child: CalendarGridWidget(
+            year: selectedMonth.year,
+            month: selectedMonth.month,
+            data: data,
+            selectedDay: _selectedDay,
+            onDaySelected: _onDaySelected,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _YearMonthPickerDialog extends StatefulWidget {
+  const _YearMonthPickerDialog({
+    required this.initialYear,
+    required this.initialMonth,
+    required this.onSelected,
+  });
+
+  final int initialYear;
+  final int initialMonth;
+  final void Function(int year, int month) onSelected;
+
+  @override
+  State<_YearMonthPickerDialog> createState() => _YearMonthPickerDialogState();
+}
+
+class _YearMonthPickerDialogState extends State<_YearMonthPickerDialog> {
+  late int _selectedYear;
+  late int _selectedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedYear = widget.initialYear;
+    _selectedMonth = widget.initialMonth;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final years = List.generate(10, (i) => now.year - 5 + i);
+    const months = [
+      '1월', '2월', '3월', '4월', '5월', '6월',
+      '7월', '8월', '9월', '10월', '11월', '12월',
+    ];
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '날짜 이동',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            // 연도 선택
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: years.map((y) {
+                  final isSelected = y == _selectedYear;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedYear = y),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF7C6AFA)
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '$y년',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isSelected ? Colors.white : Colors.black87,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 월 선택 (3x4 그리드)
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                childAspectRatio: 1.8,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: 12,
+              itemBuilder: (_, i) {
+                final m = i + 1;
+                final isSelected = m == _selectedMonth;
+                return GestureDetector(
+                  onTap: () {
+                    widget.onSelected(_selectedYear, m);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF7C6AFA)
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        months[i],
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isSelected ? Colors.white : Colors.black87,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('닫기',
+                  style: TextStyle(color: Colors.grey)),
+            ),
+          ],
         ),
       ),
     );
