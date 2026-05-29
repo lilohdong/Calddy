@@ -11,7 +11,7 @@ import '../../domain/usecases/create_comment_usecase.dart';
 import '../../domain/usecases/delete_comment_usecase.dart';
 import '../../domain/usecases/toggle_post_like_usecase.dart';
 import '../../domain/usecases/update_comment_usecase.dart';
-import '../providers/feed_providers.dart';
+import '../providers/feed_providers.dart' show commentsProvider, togglePostLikeUseCaseProvider, createCommentUseCaseProvider, updateCommentUseCaseProvider, deleteCommentUseCaseProvider, postByIdProvider;
 import '../utils/feed_ui_helpers.dart';
 
 const _kPurple = Color(0xFF7C6AFA);
@@ -137,6 +137,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   Widget build(BuildContext context) {
     final commentsAsync = ref.watch(commentsProvider(widget.postId));
     final currentUser = ref.watch(currentUserProvider);
+    // extra 없이 진입한 경우 postId로 단건 조회
+    final postAsync = widget.post != null
+        ? null
+        : ref.watch(postByIdProvider(widget.postId));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F8),
@@ -164,13 +168,37 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               slivers: [
                 // ── 게시물 헤더 ──────────────────────────────────
                 SliverToBoxAdapter(
-                  child: _PostHeader(
-                    post: widget.post,
-                    postId: widget.postId,
-                    liked: _liked,
-                    likeCount: _likeCount,
-                    onLike: _toggleLike,
-                  ),
+                  child: postAsync == null
+                      // extra로 받은 post 바로 사용
+                      ? _PostHeader(
+                          post: widget.post,
+                          postId: widget.postId,
+                          liked: _liked,
+                          likeCount: _likeCount,
+                          onLike: _toggleLike,
+                        )
+                      // postId로 단건 조회 결과 사용
+                      : postAsync.when(
+                          loading: () => const Padding(
+                            padding: EdgeInsets.all(32),
+                            child: Center(
+                                child: CircularProgressIndicator(
+                                    color: _kPurple)),
+                          ),
+                          error: (_, __) => const Padding(
+                            padding: EdgeInsets.all(32),
+                            child: Center(
+                                child: Text('게시물을 불러올 수 없어요',
+                                    style: TextStyle(color: Colors.grey))),
+                          ),
+                          data: (fetchedPost) => _PostHeader(
+                            post: fetchedPost,
+                            postId: widget.postId,
+                            liked: _liked,
+                            likeCount: _likeCount,
+                            onLike: _toggleLike,
+                          ),
+                        ),
                 ),
 
                 // ── 댓글 헤더 ─────────────────────────────────────
@@ -272,28 +300,7 @@ class _PostHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (post == null) {
-      // TODO: 백엔드팀에 getPostById UseCase 추가 요청 후 여기서 fetch로 교체
-      return Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.article_outlined, color: Colors.grey.shade400, size: 40),
-            const SizedBox(height: 12),
-            Text(
-              '게시물을 불러올 수 없어요',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-            ),
-          ],
-        ),
-      );
-    }
+    if (post == null) return const SizedBox.shrink();
     final p = post!;
     final color = avatarColor(p.userId);
     final initial = avatarInitial(p.userId);

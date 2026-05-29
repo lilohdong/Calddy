@@ -6,6 +6,9 @@ abstract class FeedRemoteDataSource {
   /// cursor: 마지막으로 받은 게시글의 createdAt (null이면 첫 페이지)
   Future<List<PostModel>> getFeedByDate(DateTime date, {DateTime? cursor});
 
+  /// 게시글 단건 조회
+  Future<PostModel> getPostById(String postId);
+
   Future<void> createPost({
     String? content,
     List<int>? imageBytes,

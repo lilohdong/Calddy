@@ -7,6 +7,9 @@ abstract class FeedRepository {
   /// cursor: 마지막으로 받은 게시글의 createdAt (null이면 첫 페이지)
   Future<List<PostEntity>> getFeedByDate(DateTime date, {DateTime? cursor});
 
+  /// 게시글 단건 조회 (딥링크·알림 진입 시 사용)
+  Future<PostEntity> getPostById(String postId);
+
   /// Realtime: 댓글 변경사항 구독
   Stream<List<CommentEntity>> watchComments(String postId);
 
