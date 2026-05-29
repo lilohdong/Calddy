@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/calddy_logo.dart';
 import '../widgets/auth_ui_widgets.dart';
 
 /// 앱 초기 로딩 중에 표시되는 스플래시 페이지.
@@ -33,8 +34,14 @@ class _SplashBody extends StatelessWidget {
         child: Column(
           children: [
             const Spacer(flex: 3),
-            // 로고
-            const AuthLogoBox(size: 100),
+            // 로고 (보라 배경 위에 흰색으로 표시)
+            ColorFiltered(
+              colorFilter: const ColorFilter.mode(
+                Colors.white,
+                BlendMode.srcIn,
+              ),
+              child: const CaldyLogo(size: 80),
+            ),
             const SizedBox(height: 24),
             const Text(
               'Calddy',

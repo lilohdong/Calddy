@@ -65,17 +65,23 @@ class FeedPage extends ConsumerStatefulWidget {
 class _FeedPageState extends ConsumerState<FeedPage> {
   DateTime _selectedDate = DateTime.now();
 
+  // DateTime.now()는 build()에서 한 번 캡처 후 전달 — 자정 edge-case 방어
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   void _prevDay() =>
       setState(() => _selectedDate = _selectedDate.subtract(const Duration(days: 1)));
-  void _nextDay() =>
-      setState(() => _selectedDate = _selectedDate.add(const Duration(days: 1)));
+  void _nextDay() {
+    if (_isSameDay(_selectedDate, DateTime.now())) return;
+    setState(() => _selectedDate = _selectedDate.add(const Duration(days: 1)));
+  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime.now(),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.light(primary: _kPurple),
@@ -120,11 +126,23 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   }
 
   void _showBell() {
-    showModalBottomSheet<void>(
+    showGeneralDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _NotificationSheet(),
+      barrierDismissible: true,
+      barrierLabel: 'dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.15),
+      transitionDuration: const Duration(milliseconds: 180),
+      transitionBuilder: (_, anim, __, child) => FadeTransition(
+        opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -0.04),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+          child: child,
+        ),
+      ),
+      pageBuilder: (ctx, _, __) => const _NotificationPopover(),
     );
   }
 
@@ -155,6 +173,10 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   Widget build(BuildContext context) {
     final feedAsync = ref.watch(feedByDateProvider(_selectedDate));
     final currentUser = ref.watch(currentUserProvider);
+    // build 한 프레임 내에서 now를 한 번만 캡처 → 자정 edge-case 방어
+    // (날짜 이동 탭 이벤트인 _nextDay는 탭 시점의 최신 DateTime.now()를 사용하는 것이 맞음)
+    final now = DateTime.now();
+    final isAtLatest = _isSameDay(_selectedDate, now);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F8),
@@ -167,6 +189,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
             onPrev: _prevDay,
             onNext: _nextDay,
             onTap: _pickDate,
+            isAtLatest: isAtLatest,
           ),
 
           // ── 피드 리스트 ───────────────────────────────────────────
@@ -300,12 +323,14 @@ class _DateBar extends StatelessWidget {
     required this.onPrev,
     required this.onNext,
     required this.onTap,
+    required this.isAtLatest,
   });
 
   final DateTime date;
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final VoidCallback onTap;
+  final bool isAtLatest;
 
   @override
   Widget build(BuildContext context) {
@@ -348,9 +373,14 @@ class _DateBar extends StatelessWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.chevron_right_rounded, color: Color(0xFF555555)),
+            icon: Icon(
+              Icons.chevron_right_rounded,
+              color: isAtLatest
+                  ? Colors.grey.shade300
+                  : const Color(0xFF555555),
+            ),
             iconSize: 22,
-            onPressed: onNext,
+            onPressed: isAtLatest ? null : onNext,
             splashRadius: 18,
           ),
         ],
@@ -633,6 +663,44 @@ class _EmptyFeed extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 공용 바텀시트 래퍼 (흰 배경 + 위쪽 둥근 모서리 + SafeArea + 핸들)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _BottomSheetWrapper extends StatelessWidget {
+  const _BottomSheetWrapper({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 핸들
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 8),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 게시물 ... 메뉴 바텀시트
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -653,25 +721,10 @@ class _PostMenuSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
+    return _BottomSheetWrapper(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 핸들
-          Container(
-            margin: const EdgeInsets.only(top: 10, bottom: 8),
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
           if (isMyPost) ...[
             _SheetItem(
               icon: Icons.edit_outlined,
@@ -702,22 +755,6 @@ class _PostMenuSheet extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.grey.shade300),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('취소',
-                    style: TextStyle(color: Color(0xFF555555))),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -824,14 +861,11 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+    return _BottomSheetWrapper(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+        child: _done ? _buildDone() : _buildForm(),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      child: _done ? _buildDone() : _buildForm(),
     );
   }
 
@@ -968,81 +1002,125 @@ class _ReasonTile extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 알림 바텀시트
+// 알림 팝오버 (말풍선 꼬리)
 // ══════════════════════════════════════════════════════════════════════════════
 
-class _NotificationSheet extends ConsumerWidget {
-  const _NotificationSheet();
+class _NotificationPopover extends ConsumerWidget {
+  const _NotificationPopover();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifAsync = ref.watch(notificationsProvider);
+    final mq = MediaQuery.of(context);
+    final topOffset = mq.padding.top + 56 + 6.0;
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      builder: (_, controller) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            // 핸들
-            Container(
-              margin: const EdgeInsets.only(top: 10, bottom: 4),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+    return Padding(
+      padding: EdgeInsets.only(top: topOffset, right: 8),
+      child: Align(
+        alignment: Alignment.topRight,
+        child: Material(
+          color: Colors.transparent,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 꼬리 삼각형 — 벨 아이콘 아래에 오도록 우측 정렬
+              const Padding(
+                padding: EdgeInsets.only(right: 18),
+                child: CustomPaint(
+                  painter: _PopoverTailPainter(),
+                  size: Size(16, 9),
+                ),
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 10, 20, 12),
-              child: Row(
-                children: [
-                  Text(
-                    '알림',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A2E)),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: notifAsync.when(
-                loading: () => const Center(
-                    child: CircularProgressIndicator(color: _kPurple)),
-                error: (_, __) => const Center(child: Text('알림을 불러올 수 없어요')),
-                data: (notifs) {
-                  if (notifs.isEmpty) {
-                    return const Center(
+              // 패널
+              Container(
+                width: mq.size.width * 0.72,
+                constraints: const BoxConstraints(maxHeight: 400),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
                       child: Text(
-                        '새로운 알림이 없어요',
-                        style: TextStyle(color: Colors.grey),
+                        '알림',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A2E),
+                        ),
                       ),
-                    );
-                  }
-                  return ListView.separated(
-                    controller: controller,
-                    itemCount: notifs.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(height: 1, indent: 16, endIndent: 16),
-                    itemBuilder: (_, i) => _NotifTile(notif: notifs[i]),
-                  );
-                },
+                    ),
+                    const Divider(height: 1),
+                    Flexible(
+                      child: notifAsync.when(
+                        loading: () => const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(
+                              child: CircularProgressIndicator(color: _kPurple)),
+                        ),
+                        error: (_, __) => const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: Text('알림을 불러올 수 없어요')),
+                        ),
+                        data: (notifs) {
+                          if (notifs.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 28),
+                              child: Center(
+                                child: Text('새로운 알림이 없어요',
+                                    style: TextStyle(color: Colors.grey)),
+                              ),
+                            );
+                          }
+                          return ListView.separated(
+                            shrinkWrap: true,
+                            physics: const ClampingScrollPhysics(),
+                            itemCount: notifs.length,
+                            separatorBuilder: (_, __) => const Divider(
+                                height: 1, indent: 16, endIndent: 16),
+                            itemBuilder: (_, i) => _NotifTile(notif: notifs[i]),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _PopoverTailPainter extends CustomPainter {
+  const _PopoverTailPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
 }
 
 class _NotifTile extends StatelessWidget {

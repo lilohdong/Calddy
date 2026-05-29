@@ -5,8 +5,9 @@ abstract class AppRoutes {
   // ── Auth ────────────────────────────────────────────────────
   static const String splash          = '/splash';
   static const String login           = '/login';
-  static const String loginEmail      = '/login/email';
-  static const String loginEmailForgot = '/login/email/forgot';
+  static const String loginEmail        = '/login/email';
+  static const String loginEmailVerify  = '/login/email/verify';
+  static const String loginEmailForgot  = '/login/email/forgot';
   static const String onboarding      = '/onboarding';
   static const String networkError    = '/error';
 

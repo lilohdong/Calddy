@@ -97,11 +97,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   color: Color(0xFF1A1A2E),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                '다시 만나서 반가워요',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-              ),
               const SizedBox(height: 36),
 
               // 이메일 입력

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/pages/email_auth_page.dart';
+import '../../features/auth/presentation/pages/email_verify_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/network_error_page.dart';
@@ -34,13 +35,32 @@ import 'main_shell.dart';
 class _RouterNotifier extends ChangeNotifier {
   _RouterNotifier(this._ref) {
     _ref.listen(authStateProvider, (_, _) => notifyListeners());
+    // 스플래시 최소 노출 시간 (2.5초) — disposed 후 콜백 방어
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (_disposed) return;
+      _splashReady = true;
+      notifyListeners();
+    });
   }
 
   final Ref _ref;
+  bool _splashReady = false;
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   String? redirect(BuildContext context, GoRouterState state) {
     final authState = _ref.read(authStateProvider);
     final location = state.matchedLocation;
+
+    // 스플래시 최소 노출 시간 미경과 → 스플래시 유지
+    if (!_splashReady) {
+      return location == AppRoutes.splash ? null : AppRoutes.splash;
+    }
 
     // 로딩 중 → 스플래시 유지
     if (authState.isLoading) {
@@ -99,6 +119,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: 'email',
             builder: (_, _) => const EmailAuthPage(),
             routes: [
+              GoRoute(
+                path: 'verify',
+                builder: (_, s) => EmailVerifyPage(
+                  email: s.extra is String ? s.extra as String : '',
+                ),
+              ),
               GoRoute(
                 path: 'forgot',
                 builder: (_, _) => const ForgotPasswordPage(),

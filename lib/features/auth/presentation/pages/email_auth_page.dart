@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../domain/usecases/sign_up_with_email_use_case.dart';
 import '../../domain/value_objects/email.dart';
 import '../providers/auth_providers.dart';
@@ -85,12 +86,7 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
           .read(signUpWithEmailUseCaseProvider)
           .call(SignUpWithEmailParams(email: email, password: password));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('가입 완료! 이메일을 확인하거나 바로 로그인해보세요.'),
-          ),
-        );
-        context.pop();
+        context.push(AppRoutes.loginEmailVerify, extra: email);
       }
     } on AuthFailure catch (e) {
       if (mounted) await AuthErrorDialog.show(context, e);
@@ -224,7 +220,7 @@ class _EmailAuthPageState extends ConsumerState<EmailAuthPage> {
 
               // 가입 완료 버튼
               AuthPurpleButton(
-                label: '가입 완료',
+                label: '이메일 인증',
                 isLoading: _isLoading,
                 enabled: _canSubmit,
                 onPressed: _submit,

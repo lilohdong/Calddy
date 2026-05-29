@@ -556,20 +556,103 @@ class _CommentMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
+    return IconButton(
       icon: const Icon(Icons.more_vert_rounded,
           color: Color(0xFFCCCCCC), size: 18),
-      onSelected: (v) {
-        if (v == 'edit') onEdit();
-        if (v == 'delete') onDelete();
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      onPressed: () {
+        showModalBottomSheet<void>(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (_) => _CommentMenuSheet(
+            onEdit: onEdit,
+            onDelete: onDelete,
+          ),
+        );
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 'edit', child: Text('수정')),
-        PopupMenuItem(
-          value: 'delete',
-          child: Text('삭제', style: TextStyle(color: Colors.red)),
+    );
+  }
+}
+
+class _CommentMenuSheet extends StatelessWidget {
+  const _CommentMenuSheet({required this.onEdit, required this.onDelete});
+
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  void _confirmDelete(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('댓글 삭제'),
+        content: const Text('이 댓글을 삭제하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onDelete();
+            },
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 8),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined,
+                  color: Color(0xFF333333), size: 22),
+              title: const Text('수정',
+                  style: TextStyle(
+                      color: Color(0xFF333333), fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              onTap: () {
+                Navigator.pop(context);
+                onEdit();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded,
+                  color: Colors.red, size: 22),
+              title: const Text('삭제',
+                  style: TextStyle(
+                      color: Colors.red, fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDelete(context);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
