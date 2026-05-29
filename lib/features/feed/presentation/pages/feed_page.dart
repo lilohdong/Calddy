@@ -15,24 +15,11 @@ import '../../domain/entities/post_entity.dart';
 import '../../domain/usecases/delete_post_usecase.dart';
 import '../../domain/usecases/toggle_post_like_usecase.dart';
 import '../providers/feed_providers.dart';
+import '../utils/feed_ui_helpers.dart';
 
 // ── 색상 상수 ──────────────────────────────────────────────────────────────────
 const _kPurple = Color(0xFF7C6AFA);
 const _kPurpleLight = Color(0xFFEDE9FF);
-
-// 아바타 색 팔레트 (userId 해시로 선택)
-const _kAvatarColors = [
-  Color(0xFF7C6AFA), Color(0xFFFF7043), Color(0xFF26A69A),
-  Color(0xFFEC407A), Color(0xFF42A5F5), Color(0xFF66BB6A),
-  Color(0xFFAB47BC), Color(0xFFFF7043),
-];
-
-Color _avatarColor(String userId) {
-  return _kAvatarColors[userId.hashCode.abs() % _kAvatarColors.length];
-}
-
-String _avatarInitial(String userId) =>
-    userId.isNotEmpty ? userId[0].toUpperCase() : '?';
 
 // ── 날짜 포맷 헬퍼 ─────────────────────────────────────────────────────────────
 String _fmtDate(DateTime dt) {
@@ -41,14 +28,6 @@ String _fmtDate(DateTime dt) {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
   return '${months[dt.month]} ${dt.day}, ${dt.year}';
-}
-
-String _fmtRelative(DateTime dt) {
-  final diff = DateTime.now().difference(dt);
-  if (diff.inMinutes < 1) return '방금 전';
-  if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
-  if (diff.inHours < 24) return '${diff.inHours}시간 전';
-  return '${diff.inDays}일 전';
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -154,7 +133,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
         post: post,
         isMyPost: isMyPost,
         onDelete: () => _deletePost(post.id),
-        onEdit: () => ctx.push('/feed/post/${post.id}/edit', extra: post),
+        onEdit: () => ctx.push(AppRoutes.postEditPath(post.id), extra: post),
         onReport: () => _showReportSheet(ctx, post.id),
       ),
     );
@@ -200,19 +179,45 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                 await ref.read(feedByDateProvider(_selectedDate).notifier).refresh();
               },
               child: feedAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator(color: _kPurple)),
-                error: (e, _) => Center(
-                  child: Text(e is FeedFailure ? e.message : '불러오기 실패'),
-                ),
+                // 로딩·에러도 ListView로 감싸 pull-to-refresh 활성화
+                loading: () => ListView(children: const [
+                  SizedBox(height: 120),
+                  Center(child: CircularProgressIndicator(color: _kPurple)),
+                ]),
+                error: (e, _) => ListView(children: [
+                  const SizedBox(height: 120),
+                  Center(
+                    child: Text(
+                      e is FeedFailure ? e.message : '불러오기 실패',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ]),
                 data: (posts) {
                   if (posts.isEmpty) {
                     return _EmptyFeed(onGoCalendar: () => context.go(AppRoutes.home));
                   }
+                  final notifier =
+                      ref.read(feedByDateProvider(_selectedDate).notifier);
                   return ListView.builder(
                     padding: const EdgeInsets.only(top: 8, bottom: 88),
-                    itemCount: posts.length,
+                    itemCount: posts.length + 1, // 마지막: fetchMore 트리거
                     itemBuilder: (_, i) {
+                      if (i == posts.length) {
+                        // 마지막 아이템 렌더 시 다음 페이지 로드
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (notifier.hasMore) notifier.fetchMore();
+                        });
+                        return notifier.hasMore
+                            ? const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                      color: _kPurple, strokeWidth: 2),
+                                ),
+                              )
+                            : const SizedBox.shrink();
+                      }
                       final post = posts[i];
                       final isMyPost = currentUser?.id == post.userId;
                       return _PostCard(
@@ -220,8 +225,10 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                         isMyPost: isMyPost,
                         onLike: () => _toggleLike(post),
                         onMenu: () => _showPostMenu(context, post, isMyPost),
-                        onTap: () => context.push('/feed/post/${post.id}', extra: post),
-                        onComment: () => context.push('/feed/post/${post.id}', extra: post),
+                        onTap: () => context.push(
+                            AppRoutes.postDetailPath(post.id), extra: post),
+                        onComment: () => context.push(
+                            AppRoutes.postDetailPath(post.id), extra: post),
                       );
                     },
                   );
@@ -412,9 +419,9 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _avatarColor(post.userId);
-    final initial = _avatarInitial(post.userId);
-    final relativeTime = _fmtRelative(post.createdAt);
+    final color = avatarColor(post.userId);
+    final initial = avatarInitial(post.userId);
+    final relativeTime = fmtRelative(post.createdAt);
     final isPrivate = post.visibility == PostVisibility.private;
 
     return GestureDetector(
@@ -523,9 +530,8 @@ class _PostCard extends StatelessWidget {
             // ── 이미지 ────────────────────────────────────────────
             if (post.imageUrl != null)
               ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(0),
-                  bottomRight: Radius.circular(0),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(16),
                 ),
                 child: Image.network(
                   post.imageUrl!,
@@ -730,7 +736,7 @@ class _PostMenuSheet extends StatelessWidget {
               icon: Icons.edit_outlined,
               label: '수정',
               onTap: () {
-                Navigator.pop(context);
+                context.pop();
                 onEdit();
               },
             ),
@@ -739,7 +745,7 @@ class _PostMenuSheet extends StatelessWidget {
               label: '삭제',
               color: Colors.red,
               onTap: () {
-                Navigator.pop(context);
+                context.pop();
                 _confirmDelete(context);
               },
             ),
@@ -749,7 +755,7 @@ class _PostMenuSheet extends StatelessWidget {
               label: '신고',
               color: Colors.red,
               onTap: () {
-                Navigator.pop(context);
+                context.pop();
                 onReport();
               },
             ),
@@ -892,7 +898,7 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => context.pop(),
             style: ElevatedButton.styleFrom(
               backgroundColor: _kPurple,
               foregroundColor: Colors.white,

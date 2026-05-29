@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/comment_entity.dart';
 import '../../domain/entities/post_entity.dart';
@@ -11,29 +12,9 @@ import '../../domain/usecases/delete_comment_usecase.dart';
 import '../../domain/usecases/toggle_post_like_usecase.dart';
 import '../../domain/usecases/update_comment_usecase.dart';
 import '../providers/feed_providers.dart';
+import '../utils/feed_ui_helpers.dart';
 
 const _kPurple = Color(0xFF7C6AFA);
-
-// 아바타 색 팔레트
-const _kAvatarColors = [
-  Color(0xFF7C6AFA), Color(0xFFFF7043), Color(0xFF26A69A),
-  Color(0xFFEC407A), Color(0xFF42A5F5), Color(0xFF66BB6A),
-  Color(0xFFAB47BC), Color(0xFFFF7043),
-];
-
-Color _avatarColor(String userId) =>
-    _kAvatarColors[userId.hashCode.abs() % _kAvatarColors.length];
-
-String _avatarInitial(String userId) =>
-    userId.isNotEmpty ? userId[0].toUpperCase() : '?';
-
-String _fmtRelative(DateTime dt) {
-  final diff = DateTime.now().difference(dt);
-  if (diff.inMinutes < 1) return '방금 전';
-  if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
-  if (diff.inHours < 24) return '${diff.inHours}시간 전';
-  return '${diff.inDays}일 전';
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PostDetailPage
@@ -71,34 +52,25 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   }
 
   Future<void> _toggleLike() async {
-    // 낙관적 업데이트
+    // 토글 전 값을 저장 → 실패 시 단순 복원
+    final prevLiked = _liked;
+    final prevCount = _likeCount;
+
     setState(() {
-      if (_liked) {
-        _liked = false;
-        _likeCount = (_likeCount - 1).clamp(0, 999999);
-      } else {
-        _liked = true;
-        _likeCount++;
-      }
+      _liked = !prevLiked;
+      _likeCount =
+          prevLiked ? (prevCount - 1).clamp(0, 999999) : prevCount + 1;
     });
+
     try {
       await ref.read(togglePostLikeUseCaseProvider).call(
             TogglePostLikeParams(
               postId: widget.postId,
-              currentlyLiked: !_liked, // toggled 전 상태
+              currentlyLiked: prevLiked, // 토글 전 실제 상태
             ),
           );
     } on FeedFailure catch (_) {
-      // 롤백
-      setState(() {
-        if (_liked) {
-          _liked = false;
-          _likeCount = (_likeCount - 1).clamp(0, 999999);
-        } else {
-          _liked = true;
-          _likeCount++;
-        }
-      });
+      if (mounted) setState(() { _liked = prevLiked; _likeCount = prevCount; });
     }
   }
 
@@ -300,11 +272,32 @@ class _PostHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (post == null) return const SizedBox.shrink();
+    if (post == null) {
+      // TODO: 백엔드팀에 getPostById UseCase 추가 요청 후 여기서 fetch로 교체
+      return Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.article_outlined, color: Colors.grey.shade400, size: 40),
+            const SizedBox(height: 12),
+            Text(
+              '게시물을 불러올 수 없어요',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
     final p = post!;
-    final color = _avatarColor(p.userId);
-    final initial = _avatarInitial(p.userId);
-    final relTime = _fmtRelative(p.createdAt);
+    final color = avatarColor(p.userId);
+    final initial = avatarInitial(p.userId);
+    final relTime = fmtRelative(p.createdAt);
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -389,6 +382,8 @@ class _PostHeader extends StatelessWidget {
           // 이미지
           if (p.imageUrl != null)
             ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(16)),
               child: Image.network(
                 p.imageUrl!,
                 width: double.infinity,
@@ -467,9 +462,9 @@ class _CommentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _avatarColor(comment.userId);
-    final initial = _avatarInitial(comment.userId);
-    final relTime = _fmtRelative(comment.createdAt);
+    final color = avatarColor(comment.userId);
+    final initial = avatarInitial(comment.userId);
+    final relTime = fmtRelative(comment.createdAt);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -590,12 +585,12 @@ class _CommentMenuSheet extends StatelessWidget {
         content: const Text('이 댓글을 삭제하시겠어요?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => ctx.pop(),
             child: const Text('취소'),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(ctx);
+              ctx.pop();
               onDelete();
             },
             child: const Text('삭제', style: TextStyle(color: Colors.red)),
@@ -633,7 +628,7 @@ class _CommentMenuSheet extends StatelessWidget {
                       color: Color(0xFF333333), fontWeight: FontWeight.w500)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 20),
               onTap: () {
-                Navigator.pop(context);
+                context.pop();
                 onEdit();
               },
             ),
@@ -645,7 +640,7 @@ class _CommentMenuSheet extends StatelessWidget {
                       color: Colors.red, fontWeight: FontWeight.w500)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 20),
               onTap: () {
-                Navigator.pop(context);
+                context.pop();
                 _confirmDelete(context);
               },
             ),
@@ -711,7 +706,7 @@ class _CommentEditSheet extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => context.pop(),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: Colors.grey.shade300),
                       shape: RoundedRectangleBorder(
