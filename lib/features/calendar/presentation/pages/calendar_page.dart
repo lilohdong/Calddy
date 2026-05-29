@@ -40,7 +40,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       builder: (_) => DateBottomSheet(
         date: day,
         onAddPressed: () {
-          Navigator.of(context).pop();
+          context.pop();
           _showNewEventTypeSheet(day);
         },
       ),

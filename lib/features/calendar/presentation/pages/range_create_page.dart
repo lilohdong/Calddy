@@ -46,6 +46,9 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
     setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
+      // TODO: Replace with CreateRangeUseCase when backend implements
+      // the separate `ranges` table (see SupabaseConstants.ranges).
+      // Currently stores range as EventEntity with EventType.range.
       await ref.read(createEventUseCaseProvider).call(
             CreateEventParams(
               event: EventEntity(

@@ -28,6 +28,7 @@ abstract class AppRoutes {
   /// 런타임 경로 헬퍼 — :eventId 치환 (하드코딩 금지)
   static String eventDetailPath(String eventId) => '/home/event/$eventId';
   static String recordPath(String eventId) => '/home/event/$eventId/record';
+  static String drawingPath(String date) => '/home/drawing/$date';
 
   // ── Feed ────────────────────────────────────────────────────
   static const String postDetail       = '/feed/post/:postId';

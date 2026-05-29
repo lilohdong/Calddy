@@ -113,7 +113,7 @@ class DateBottomSheet extends ConsumerWidget {
                     itemBuilder: (_, i) => EventListTile(
                       event: events[i],
                       onTap: () {
-                        Navigator.of(context).pop();
+                        context.pop();
                         context.push(
                             AppRoutes.eventDetailPath(events[i].id));
                       },
@@ -244,7 +244,7 @@ class EventListTile extends ConsumerWidget {
             else
               TextButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
+                  context.pop();
                   context.push(AppRoutes.recordPath(event.id));
                 },
                 style: TextButton.styleFrom(
@@ -276,14 +276,14 @@ class CompleteEventDialog extends StatelessWidget {
           style: TextStyle(fontSize: 14, color: Colors.grey)),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
           child: const Text('건너뛰기',
               style: TextStyle(color: Colors.grey)),
         ),
         ElevatedButton(
           onPressed: () {
-            Navigator.of(context).pop();
-            Navigator.of(context).pop(); // DateBottomSheet 닫기
+            context.pop();
+            context.pop(); // DateBottomSheet 닫기
             context.push(AppRoutes.recordPath(eventId));
           },
           style: ElevatedButton.styleFrom(
@@ -347,7 +347,7 @@ class NewEventTypeBottomSheet extends StatelessWidget {
             title: '일정',
             subtitle: '단일 일정 (약속 등)',
             onTap: () {
-              Navigator.of(context).pop();
+              context.pop();
               context.push(AppRoutes.eventCreate);
             },
           ),
@@ -359,7 +359,7 @@ class NewEventTypeBottomSheet extends StatelessWidget {
             title: '구간',
             subtitle: '이틀 이상 진행되는 일정',
             onTap: () {
-              Navigator.of(context).pop();
+              context.pop();
               context.push(AppRoutes.rangeCreate);
             },
           ),
@@ -371,10 +371,10 @@ class NewEventTypeBottomSheet extends StatelessWidget {
             title: '꾸미기',
             subtitle: '오늘 칸을 꾸며보세요',
             onTap: () {
-              Navigator.of(context).pop();
+              context.pop();
               final dateStr =
                   '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-              context.push('/home/drawing/$dateStr');
+              context.push(AppRoutes.drawingPath(dateStr));
             },
           ),
         ],
