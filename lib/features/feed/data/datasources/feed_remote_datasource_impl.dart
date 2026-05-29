@@ -65,6 +65,31 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
   }
 
   @override
+  Future<PostModel> getPostById(String postId) async {
+    final userId = _currentUserId;
+
+    final result = await _supabase
+        .from(SupabaseConstants.posts)
+        .select(
+          'id, user_id, event_id, content, image_url, visibility, likes_count, feed_date, created_at',
+        )
+        .eq('id', postId)
+        .single();
+
+    final likedResult = await _supabase
+        .from(SupabaseConstants.postLikes)
+        .select('post_id')
+        .eq('post_id', postId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    return PostModel.fromJson(
+      result as Map<String, dynamic>,
+      isLikedByMe: likedResult != null,
+    );
+  }
+
+  @override
   Future<void> createPost({
     String? content,
     List<int>? imageBytes,

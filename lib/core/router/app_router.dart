@@ -2,22 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/pages/email_auth_page.dart';
+import '../../features/auth/presentation/pages/email_verify_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/network_error_page.dart';
 import '../../features/auth/presentation/pages/onboarding_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
+import '../../features/appointment/presentation/pages/appointment_create_page.dart';
+import '../../features/appointment/presentation/pages/appointment_detail_page.dart';
 import '../../features/calendar/presentation/pages/calendar_page.dart';
+import '../../features/calendar/presentation/pages/drawing_page.dart';
+import '../../features/calendar/presentation/pages/event_create_page.dart';
+import '../../features/calendar/presentation/pages/event_detail_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
 import '../../features/feed/presentation/pages/post_create_page.dart';
 import '../../features/feed/presentation/pages/post_detail_page.dart';
+import '../../features/feed/presentation/pages/post_edit_page.dart';
+import '../../features/feed/domain/entities/post_entity.dart';
 import '../../features/friend/presentation/pages/friend_calendar_page.dart';
 import '../../features/friend/presentation/pages/friends_page.dart';
 import '../../features/friend/presentation/pages/merge_calendar_page.dart';
 import '../../features/map/presentation/pages/place_picker_page.dart';
 import '../../features/notification/presentation/pages/notifications_page.dart';
+import '../../features/user/presentation/pages/edit_profile_page.dart';
 import '../../features/user/presentation/pages/profile_page.dart';
+import '../../features/user/presentation/pages/settings_page.dart';
 import 'app_routes.dart';
 import 'main_shell.dart';
 
@@ -25,13 +35,32 @@ import 'main_shell.dart';
 class _RouterNotifier extends ChangeNotifier {
   _RouterNotifier(this._ref) {
     _ref.listen(authStateProvider, (_, _) => notifyListeners());
+    // 스플래시 최소 노출 시간 (2.5초) — disposed 후 콜백 방어
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (_disposed) return;
+      _splashReady = true;
+      notifyListeners();
+    });
   }
 
   final Ref _ref;
+  bool _splashReady = false;
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   String? redirect(BuildContext context, GoRouterState state) {
     final authState = _ref.read(authStateProvider);
     final location = state.matchedLocation;
+
+    // 스플래시 최소 노출 시간 미경과 → 스플래시 유지
+    if (!_splashReady) {
+      return location == AppRoutes.splash ? null : AppRoutes.splash;
+    }
 
     // 로딩 중 → 스플래시 유지
     if (authState.isLoading) {
@@ -57,11 +86,11 @@ class _RouterNotifier extends ChangeNotifier {
       return AppRoutes.onboarding;
     }
 
-    // 로그인 + 온보딩 완료 → 인증 경로에 있으면 홈으로
+    // 로그인 + 온보딩 완료 → 인증 경로에 있으면 피드(홈탭)으로
     if (location == AppRoutes.splash ||
         location.startsWith(AppRoutes.login) ||
         location == AppRoutes.onboarding) {
-      return AppRoutes.home;
+      return AppRoutes.feed;
     }
 
     return null;
@@ -91,6 +120,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, _) => const EmailAuthPage(),
             routes: [
               GoRoute(
+                path: 'verify',
+                builder: (_, s) => EmailVerifyPage(
+                  email: s.extra is String ? s.extra as String : '',
+                ),
+              ),
+              GoRoute(
                 path: 'forgot',
                 builder: (_, _) => const ForgotPasswordPage(),
               ),
@@ -117,28 +152,28 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'event/create',
-                builder: (_, _) => const _PlaceholderPage(title: '일정 만들기'),
+                builder: (_, _) => const EventCreatePage(),
               ),
               GoRoute(
                 path: 'event/:eventId',
-                builder: (_, s) => _PlaceholderPage(
-                  title: '일정 상세 (${s.pathParameters['eventId']})',
+                builder: (_, s) => EventDetailPage(
+                  eventId: s.pathParameters['eventId']!,
                 ),
               ),
               GoRoute(
                 path: 'drawing/:date',
-                builder: (_, s) => _PlaceholderPage(
-                  title: '드로잉 (${s.pathParameters['date']})',
+                builder: (_, s) => DrawingPage(
+                  date: s.pathParameters['date']!,
                 ),
               ),
               GoRoute(
                 path: 'appointment/create',
-                builder: (_, _) => const _PlaceholderPage(title: '약속 만들기'),
+                builder: (_, _) => const AppointmentCreatePage(),
               ),
               GoRoute(
                 path: 'appointment/:appointmentId',
-                builder: (_, s) => _PlaceholderPage(
-                  title: '약속 상세 (${s.pathParameters['appointmentId']})',
+                builder: (_, s) => AppointmentDetailPage(
+                  appointmentId: s.pathParameters['appointmentId']!,
                 ),
               ),
             ],
@@ -155,7 +190,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'post/:postId',
                 builder: (_, s) => PostDetailPage(
                   postId: s.pathParameters['postId']!,
+                  post: s.extra as PostEntity?,
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'edit',
+                    builder: (_, s) => PostEditPage(
+                      post: s.extra as PostEntity,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -183,11 +227,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'edit',
-                builder: (_, _) => const _PlaceholderPage(title: '프로필 편집'),
+                builder: (_, _) => const EditProfilePage(),
               ),
               GoRoute(
                 path: 'settings',
-                builder: (_, _) => const _PlaceholderPage(title: '설정'),
+                builder: (_, _) => const SettingsPage(),
               ),
             ],
           ),
@@ -201,7 +245,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.placePicker,
-        builder: (_, _) => const PlacePickerPage(),
+        builder: (_, s) => PlacePickerPage(
+          appointmentId: s.extra as String?,
+        ),
       ),
     ],
   );
@@ -214,16 +260,3 @@ final routerProvider = Provider<GoRouter>((ref) {
   return router;
 });
 
-/// 아직 구현되지 않은 페이지용 임시 플레이스홀더
-class _PlaceholderPage extends StatelessWidget {
-  const _PlaceholderPage({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(child: Text('$title 준비 중')),
-    );
-  }
-}

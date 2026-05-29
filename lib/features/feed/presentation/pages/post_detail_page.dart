@@ -1,17 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../../../core/router/app_routes.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/comment_entity.dart';
+import '../../domain/entities/post_entity.dart';
 import '../../domain/usecases/create_comment_usecase.dart';
 import '../../domain/usecases/delete_comment_usecase.dart';
+import '../../domain/usecases/toggle_post_like_usecase.dart';
 import '../../domain/usecases/update_comment_usecase.dart';
-import '../providers/feed_providers.dart';
+import '../providers/feed_providers.dart' show commentsProvider, togglePostLikeUseCaseProvider, createCommentUseCaseProvider, updateCommentUseCaseProvider, deleteCommentUseCaseProvider, postByIdProvider;
+import '../utils/feed_ui_helpers.dart';
+
+const _kPurple = Color(0xFF7C6AFA);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PostDetailPage
+// ══════════════════════════════════════════════════════════════════════════════
 
 class PostDetailPage extends ConsumerStatefulWidget {
-  const PostDetailPage({super.key, required this.postId});
+  const PostDetailPage({super.key, required this.postId, this.post});
 
   final String postId;
+  final PostEntity? post; // FeedPage에서 extra로 전달
 
   @override
   ConsumerState<PostDetailPage> createState() => _PostDetailPageState();
@@ -21,10 +34,44 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   final _controller = TextEditingController();
   bool _submitting = false;
 
+  // 게시물 좋아요 상태 (extra로 받은 값에서 시작, 낙관적 업데이트)
+  late bool _liked;
+  late int _likeCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _liked = widget.post?.isLikedByMe ?? false;
+    _likeCount = widget.post?.likesCount ?? 0;
+  }
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleLike() async {
+    // 토글 전 값을 저장 → 실패 시 단순 복원
+    final prevLiked = _liked;
+    final prevCount = _likeCount;
+
+    setState(() {
+      _liked = !prevLiked;
+      _likeCount =
+          prevLiked ? (prevCount - 1).clamp(0, 999999) : prevCount + 1;
+    });
+
+    try {
+      await ref.read(togglePostLikeUseCaseProvider).call(
+            TogglePostLikeParams(
+              postId: widget.postId,
+              currentlyLiked: prevLiked, // 토글 전 실제 상태
+            ),
+          );
+    } on FeedFailure catch (_) {
+      if (mounted) setState(() { _liked = prevLiked; _likeCount = prevCount; });
+    }
   }
 
   Future<void> _createComment() async {
@@ -64,38 +111,17 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   }
 
   Future<void> _editComment(CommentEntity comment) async {
-    final controller = TextEditingController(text: comment.content);
-    final confirmed = await showDialog<bool>(
+    final ctrl = TextEditingController(text: comment.content);
+    final saved = await showModalBottomSheet<String?>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('댓글 수정'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: null,
-          decoration: const InputDecoration(hintText: '댓글 내용'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('저장'),
-          ),
-        ],
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CommentEditSheet(controller: ctrl),
     );
-    if (confirmed != true) return;
-    final newContent = controller.text.trim();
-    if (newContent.isEmpty || newContent == comment.content) return;
+    if (saved == null || saved.trim().isEmpty || saved == comment.content) return;
     try {
       await ref.read(updateCommentUseCaseProvider).call(
-            UpdateCommentParams(
-              commentId: comment.id,
-              content: newContent,
-            ),
+            UpdateCommentParams(commentId: comment.id, content: saved.trim()),
           );
       ref.invalidate(commentsProvider(widget.postId));
     } on FeedFailure catch (e) {
@@ -110,70 +136,313 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   @override
   Widget build(BuildContext context) {
     final commentsAsync = ref.watch(commentsProvider(widget.postId));
+    final currentUser = ref.watch(currentUserProvider);
+    // extra 없이 진입한 경우 postId로 단건 조회
+    final postAsync = widget.post != null
+        ? null
+        : ref.watch(postByIdProvider(widget.postId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('게시물 상세')),
+      backgroundColor: const Color(0xFFF5F5F8),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              size: 20, color: Color(0xFF333333)),
+          onPressed: () => context.pop(),
+        ),
+        title: const Text(
+          '게시물',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1A1A2E),
+          ),
+        ),
+      ),
       body: Column(
         children: [
           Expanded(
-            child: commentsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(
-                child: Text(e is FeedFailure ? e.message : '댓글 불러오기 실패'),
-              ),
-              data: (comments) {
-                if (comments.isEmpty) {
-                  return const Center(child: Text('댓글이 없습니다.'));
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: comments.length,
-                  separatorBuilder: (_, _) => const Divider(),
-                  itemBuilder: (_, i) => _CommentTile(
-                    comment: comments[i],
-                    onEdit: () => _editComment(comments[i]),
-                    onDelete: () => _deleteComment(comments[i].id),
-                  ),
-                );
-              },
-            ),
-          ),
-          const Divider(height: 1),
-          Padding(
-            padding: EdgeInsets.only(
-              left: 12,
-              right: 8,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 8,
-              top: 8,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    maxLines: null,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _createComment(),
-                    decoration: const InputDecoration(
-                      hintText: '댓글을 입력하세요',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: CustomScrollView(
+              slivers: [
+                // ── 게시물 헤더 ──────────────────────────────────
+                SliverToBoxAdapter(
+                  child: postAsync == null
+                      // extra로 받은 post 바로 사용
+                      ? _PostHeader(
+                          post: widget.post,
+                          postId: widget.postId,
+                          liked: _liked,
+                          likeCount: _likeCount,
+                          onLike: _toggleLike,
+                        )
+                      // postId로 단건 조회 결과 사용
+                      : postAsync.when(
+                          loading: () => const Padding(
+                            padding: EdgeInsets.all(32),
+                            child: Center(
+                                child: CircularProgressIndicator(
+                                    color: _kPurple)),
+                          ),
+                          error: (_, __) => const Padding(
+                            padding: EdgeInsets.all(32),
+                            child: Center(
+                                child: Text('게시물을 불러올 수 없어요',
+                                    style: TextStyle(color: Colors.grey))),
+                          ),
+                          data: (fetchedPost) => _PostHeader(
+                            post: fetchedPost,
+                            postId: widget.postId,
+                            liked: _liked,
+                            likeCount: _likeCount,
+                            onLike: _toggleLike,
+                          ),
+                        ),
+                ),
+
+                // ── 댓글 헤더 ─────────────────────────────────────
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Text(
+                      '댓글',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A2E),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                _submitting
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.send),
-                        onPressed: _createComment,
+
+                // ── 댓글 목록 ─────────────────────────────────────
+                commentsAsync.when(
+                  loading: () => const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(
+                          child: CircularProgressIndicator(color: _kPurple)),
+                    ),
+                  ),
+                  error: (e, _) => SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Center(
+                        child: Text(
+                            e is FeedFailure ? e.message : '댓글 불러오기 실패'),
                       ),
+                    ),
+                  ),
+                  data: (comments) {
+                    if (comments.isEmpty) {
+                      return const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: Text(
+                              '첫 댓글을 남겨보세요!',
+                              style: TextStyle(
+                                  color: Colors.grey, fontSize: 14),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (_, i) => _CommentCard(
+                          comment: comments[i],
+                          isMyComment:
+                              currentUser?.id == comments[i].userId,
+                          onEdit: () => _editComment(comments[i]),
+                          onDelete: () => _deleteComment(comments[i].id),
+                        ),
+                        childCount: comments.length,
+                      ),
+                    );
+                  },
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              ],
+            ),
+          ),
+
+          // ── 댓글 입력 바 ─────────────────────────────────────────
+          _CommentInputBar(
+            controller: _controller,
+            submitting: _submitting,
+            onSubmit: _createComment,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 게시물 헤더 ────────────────────────────────────────────────────────────────
+
+class _PostHeader extends StatelessWidget {
+  const _PostHeader({
+    required this.post,
+    required this.postId,
+    required this.liked,
+    required this.likeCount,
+    required this.onLike,
+  });
+
+  final PostEntity? post;
+  final String postId;
+  final bool liked;
+  final int likeCount;
+  final VoidCallback onLike;
+
+  @override
+  Widget build(BuildContext context) {
+    if (post == null) return const SizedBox.shrink();
+    final p = post!;
+    final color = avatarColor(p.userId);
+    final initial = avatarInitial(p.userId);
+    final relTime = fmtRelative(p.createdAt);
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 헤더
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      initial,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.userId.length > 8
+                            ? p.userId.substring(0, 8)
+                            : p.userId,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      Text(
+                        relTime,
+                        style: const TextStyle(
+                            fontSize: 11, color: Color(0xFFAAAAAA)),
+                      ),
+                    ],
+                  ),
+                ),
+                if (p.visibility == PostVisibility.private)
+                  const Icon(Icons.lock_outline, size: 14, color: Colors.grey),
+              ],
+            ),
+          ),
+
+          // 내용
+          if (p.content != null && p.content!.isNotEmpty)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Text(
+                p.content!,
+                style: const TextStyle(
+                    fontSize: 15, color: Color(0xFF333333), height: 1.6),
+              ),
+            ),
+
+          // 이미지
+          if (p.imageUrl != null)
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(16)),
+              child: Image.network(
+                p.imageUrl!,
+                width: double.infinity,
+                height: 220,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 220,
+                  color: Colors.grey.shade100,
+                  child: const Icon(Icons.image_not_supported_outlined,
+                      color: Colors.grey),
+                ),
+              ),
+            ),
+
+          // 좋아요 + 댓글 수
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 14, 12),
+            child: Row(
+              children: [
+                InkWell(
+                  onTap: onLike,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          liked
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          size: 20,
+                          color: liked
+                              ? const Color(0xFFFF4D6D)
+                              : const Color(0xFFAAAAAA),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$likeCount',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: liked
+                                ? const Color(0xFFFF4D6D)
+                                : const Color(0xFFAAAAAA),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -183,34 +452,372 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   }
 }
 
-class _CommentTile extends StatelessWidget {
-  const _CommentTile({
+// ── 댓글 카드 ──────────────────────────────────────────────────────────────────
+
+class _CommentCard extends StatelessWidget {
+  const _CommentCard({
     required this.comment,
+    required this.isMyComment,
     required this.onEdit,
     required this.onDelete,
   });
 
   final CommentEntity comment;
+  final bool isMyComment;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      title: Text(comment.content),
-      subtitle: Text(_fmt(comment.createdAt)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(icon: const Icon(Icons.edit_outlined), onPressed: onEdit),
-          IconButton(
-              icon: const Icon(Icons.delete_outline), onPressed: onDelete),
+    final color = avatarColor(comment.userId);
+    final initial = avatarInitial(comment.userId);
+    final relTime = fmtRelative(comment.createdAt);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 아바타
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  initial,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // 내용
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        comment.userId.length > 8
+                            ? comment.userId.substring(0, 8)
+                            : comment.userId,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        relTime,
+                        style: const TextStyle(
+                            fontSize: 11, color: Color(0xFFAAAAAA)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    comment.content,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF333333),
+                        height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            // 내 댓글인 경우 ... 메뉴
+            if (isMyComment)
+              _CommentMenu(onEdit: onEdit, onDelete: onDelete),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CommentMenu extends StatelessWidget {
+  const _CommentMenu({required this.onEdit, required this.onDelete});
+
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.more_vert_rounded,
+          color: Color(0xFFCCCCCC), size: 18),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      onPressed: () {
+        showModalBottomSheet<void>(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (_) => _CommentMenuSheet(
+            onEdit: onEdit,
+            onDelete: onDelete,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CommentMenuSheet extends StatelessWidget {
+  const _CommentMenuSheet({required this.onEdit, required this.onDelete});
+
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  void _confirmDelete(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('댓글 삭제'),
+        content: const Text('이 댓글을 삭제하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => ctx.pop(),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              ctx.pop();
+              onDelete();
+            },
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
   }
 
-  String _fmt(DateTime dt) =>
-      '${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')} '
-      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 8),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined,
+                  color: Color(0xFF333333), size: 22),
+              title: const Text('수정',
+                  style: TextStyle(
+                      color: Color(0xFF333333), fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              onTap: () {
+                context.pop();
+                onEdit();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded,
+                  color: Colors.red, size: 22),
+              title: const Text('삭제',
+                  style: TextStyle(
+                      color: Colors.red, fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              onTap: () {
+                context.pop();
+                _confirmDelete(context);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 댓글 수정 시트 ─────────────────────────────────────────────────────────────
+
+class _CommentEditSheet extends StatelessWidget {
+  const _CommentEditSheet({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '댓글 수정',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1A2E)),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: TextField(
+                controller: controller,
+                autofocus: true,
+                maxLines: null,
+                style: const TextStyle(fontSize: 14),
+                decoration: const InputDecoration(
+                  hintText: '댓글을 수정하세요',
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.all(14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('취소',
+                        style: TextStyle(color: Color(0xFF555555))),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context, controller.text),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kPurple,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('저장',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 댓글 입력 바 ───────────────────────────────────────────────────────────────
+
+class _CommentInputBar extends StatelessWidget {
+  const _CommentInputBar({
+    required this.controller,
+    required this.submitting,
+    required this.onSubmit,
+  });
+
+  final TextEditingController controller;
+  final bool submitting;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+      ),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 12,
+        top: 10,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 10,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: TextField(
+                controller: controller,
+                maxLines: null,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => onSubmit(),
+                style: const TextStyle(fontSize: 14),
+                decoration: const InputDecoration(
+                  hintText: '댓글을 입력하세요...',
+                  hintStyle: TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
+                  border: InputBorder.none,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: submitting ? null : onSubmit,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: submitting ? Colors.grey.shade300 : _kPurple,
+                shape: BoxShape.circle,
+              ),
+              child: submitting
+                  ? const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.send_rounded,
+                      color: Colors.white, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

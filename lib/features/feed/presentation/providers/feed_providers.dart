@@ -14,6 +14,7 @@ import '../../domain/usecases/delete_comment_usecase.dart';
 import '../../domain/usecases/delete_post_usecase.dart';
 import '../../domain/usecases/get_comments_usecase.dart';
 import '../../domain/usecases/get_feed_by_date_usecase.dart';
+import '../../domain/usecases/get_post_by_id_usecase.dart';
 import '../../domain/usecases/get_post_likers_usecase.dart';
 import '../../domain/usecases/toggle_post_like_usecase.dart';
 import '../../domain/usecases/update_comment_usecase.dart';
@@ -71,6 +72,10 @@ final updateCommentUseCaseProvider = Provider<UpdateCommentUseCase>((ref) {
 
 final deleteCommentUseCaseProvider = Provider<DeleteCommentUseCase>((ref) {
   return DeleteCommentUseCase(ref.watch(feedRepositoryProvider));
+});
+
+final getPostByIdUseCaseProvider = Provider<GetPostByIdUseCase>((ref) {
+  return GetPostByIdUseCase(ref.watch(feedRepositoryProvider));
 });
 
 final getPostLikersUseCaseProvider = Provider<GetPostLikersUseCase>((ref) {
@@ -136,6 +141,12 @@ final commentsProvider = FutureProvider.autoDispose
   return ref
       .read(getCommentsUseCaseProvider)
       .call(GetCommentsParams(postId: postId));
+});
+
+/// 게시글 단건 조회 (딥링크·알림 진입 시 extra 없는 경우 사용)
+final postByIdProvider = FutureProvider.autoDispose
+    .family<PostEntity, String>((ref, postId) {
+  return ref.read(getPostByIdUseCaseProvider).call(postId);
 });
 
 /// 특정 게시글 좋아요 누른 사용자 목록

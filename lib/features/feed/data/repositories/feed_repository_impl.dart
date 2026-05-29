@@ -31,6 +31,19 @@ class FeedRepositoryImpl implements FeedRepository {
       _remoteDataSource.watchComments(postId);
 
   @override
+  Future<PostEntity> getPostById(String postId) async {
+    try {
+      return await _remoteDataSource.getPostById(postId);
+    } on AuthException {
+      throw const FeedSessionExpiredFailure();
+    } on PostgrestException catch (e) {
+      throw _mapPostgrest(e);
+    } catch (_) {
+      throw const FeedUnknownFailure();
+    }
+  }
+
+  @override
   Future<void> createPost({
     String? content,
     List<int>? imageBytes,
