@@ -42,10 +42,16 @@ class CalendarGridWidget extends StatelessWidget {
 
   List<EventEntity> _eventsForDay(DateTime day) {
     return [
-      ...data.events.where((e) => _isSameDay(e.startAt, day)),
+      ...data.events.where((e) =>
+          _isSameDay(e.startAt, day) &&
+          _isSameDay(e.startAt, e.endAt)), // single-day only
       ...data.habits.where((e) => _isSameDay(e.startAt, day)),
     ];
   }
+
+  List<EventEntity> get _multiDayEvents => data.events
+      .where((e) => !_isSameDay(e.startAt, e.endAt))
+      .toList();
 
   bool _isHoliday(DateTime day) =>
       data.holidays.any((h) => _isSameDay(h.date, day));
@@ -63,8 +69,9 @@ class CalendarGridWidget extends StatelessWidget {
     double cellHeight,
   ) {
     final bars = <Widget>[];
-    double verticalOffset = cellHeight * 0.55;
 
+    // Collect which ranges overlap this week
+    final overlapping = <EventEntity>[];
     for (final range in ranges) {
       final rangeStart = DateTime(
           range.startAt.year, range.startAt.month, range.startAt.day);
@@ -72,10 +79,20 @@ class CalendarGridWidget extends StatelessWidget {
           DateTime(range.endAt.year, range.endAt.month, range.endAt.day);
       final weekStart = weekDays.first;
       final weekEnd = weekDays.last;
-
-      if (rangeEnd.isBefore(weekStart) || rangeStart.isAfter(weekEnd)) {
-        continue;
+      if (!rangeEnd.isBefore(weekStart) && !rangeStart.isAfter(weekEnd)) {
+        overlapping.add(range);
       }
+    }
+
+    // Place from bottom up (idx=0 at bottom, higher idx stacks upward)
+    for (int idx = 0; idx < overlapping.length; idx++) {
+      final range = overlapping[idx];
+      final rangeStart = DateTime(
+          range.startAt.year, range.startAt.month, range.startAt.day);
+      final rangeEnd =
+          DateTime(range.endAt.year, range.endAt.month, range.endAt.day);
+      final weekStart = weekDays.first;
+      final weekEnd = weekDays.last;
 
       final displayStart =
           rangeStart.isBefore(weekStart) ? weekStart : rangeStart;
@@ -83,7 +100,6 @@ class CalendarGridWidget extends StatelessWidget {
 
       final startCol = weekDays.indexWhere((d) => _isSameDay(d, displayStart));
       final endCol = weekDays.indexWhere((d) => _isSameDay(d, displayEnd));
-
       if (startCol == -1 || endCol == -1) continue;
 
       final left = startCol * cellWidth;
@@ -91,9 +107,12 @@ class CalendarGridWidget extends StatelessWidget {
       final isStart = _isSameDay(displayStart, rangeStart);
       final isEnd = _isSameDay(displayEnd, rangeEnd);
 
+      // Bottom position: first range at bottom, subsequent ones stack upward
+      final bottom = 2.0 + idx * 20.0;
+
       bars.add(
         Positioned(
-          top: verticalOffset,
+          bottom: bottom,
           left: left,
           width: width,
           height: 18,
@@ -104,7 +123,6 @@ class CalendarGridWidget extends StatelessWidget {
           ),
         ),
       );
-      verticalOffset += 20;
     }
     return bars;
   }
@@ -154,6 +172,7 @@ class CalendarGridWidget extends StatelessWidget {
                   return SizedBox(
                     height: cellHeight,
                     child: Stack(
+                      clipBehavior: Clip.hardEdge,
                       children: [
                         Row(
                           children: weekDays.map((day) {
@@ -178,7 +197,7 @@ class CalendarGridWidget extends StatelessWidget {
                         ),
                         ..._buildRangeBarsForWeek(
                           weekDays,
-                          data.ranges,
+                          [...data.ranges, ..._multiDayEvents],
                           cellWidth,
                           cellHeight,
                         ),
