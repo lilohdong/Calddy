@@ -97,3 +97,12 @@ final drawingByDateProvider =
   final useCase = ref.watch(getDrawingUseCaseProvider);
   return useCase(GetDrawingParams(date: date));
 });
+
+/// 해당 월의 드로잉 썸네일 URL 맵 (draw_date string → thumbnailUrl)
+/// draw_date format: 'yyyy-MM-dd'
+final drawingThumbnailsForMonthProvider = FutureProvider.autoDispose
+    .family<Map<String, String?>, DateTime>((ref, month) {
+  return ref
+      .read(drawingRemoteDataSourceProvider)
+      .getDrawingThumbnailsForMonth(month.year, month.month);
+});

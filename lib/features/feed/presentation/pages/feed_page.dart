@@ -238,16 +238,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await context.push(AppRoutes.postCreate);
-          ref.invalidate(feedByDateProvider(_selectedDate));
-        },
-        backgroundColor: _kPurple,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        child: const Icon(Icons.add_rounded),
-      ),
+
     );
   }
 }

@@ -15,8 +15,10 @@ import '../../features/calendar/presentation/pages/calendar_page.dart';
 import '../../features/calendar/presentation/pages/drawing_page.dart';
 import '../../features/calendar/presentation/pages/event_create_page.dart';
 import '../../features/calendar/presentation/pages/event_detail_page.dart';
+import '../../features/calendar/presentation/pages/range_create_page.dart';
+import '../../features/calendar/presentation/pages/record_page.dart';
+import '../../features/map/presentation/pages/ai_midpoint_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
-import '../../features/feed/presentation/pages/post_create_page.dart';
 import '../../features/feed/presentation/pages/post_detail_page.dart';
 import '../../features/feed/presentation/pages/post_edit_page.dart';
 import '../../features/feed/domain/entities/post_entity.dart';
@@ -167,6 +169,17 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ),
               ),
               GoRoute(
+                path: 'range/create',
+                builder: (_, _) => const RangeCreatePage(),
+              ),
+              GoRoute(
+                path: 'event/:eventId/record',
+                builder: (_, s) => RecordPage(
+                  eventId: s.pathParameters['eventId']!,
+                  isEditing: s.extra == true,
+                ),
+              ),
+              GoRoute(
                 path: 'appointment/create',
                 builder: (_, _) => const AppointmentCreatePage(),
               ),
@@ -182,10 +195,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.feed,
             builder: (_, _) => const FeedPage(),
             routes: [
-              GoRoute(
-                path: 'post/create',
-                builder: (_, _) => const PostCreatePage(),
-              ),
               GoRoute(
                 path: 'post/:postId',
                 builder: (_, s) => PostDetailPage(
@@ -247,6 +256,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.placePicker,
         builder: (_, s) => PlacePickerPage(
           appointmentId: s.extra as String?,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.aiMidpoint,
+        builder: (_, s) => AiMidpointPage(
+          friendId: s.extra as String?,
         ),
       ),
     ],
