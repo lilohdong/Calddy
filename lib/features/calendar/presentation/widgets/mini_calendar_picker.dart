@@ -137,7 +137,14 @@ class _MiniCalendarPickerState extends State<MiniCalendarPicker> {
 
                 return Expanded(
                   child: GestureDetector(
-                    onTap: isCurrent ? () => _onDayTap(day) : null,
+                    onTap: () {
+                      if (!isCurrent) {
+                        setState(() {
+                          _viewMonth = DateTime(day.year, day.month);
+                        });
+                      }
+                      _onDayTap(day);
+                    },
                     child: Container(
                       height: 36,
                       decoration: BoxDecoration(

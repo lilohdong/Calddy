@@ -54,21 +54,207 @@ class ColorPickerRow extends StatelessWidget {
             ),
           );
         }),
-        GestureDetector(
-          onTap: () async {
-            // TODO: 커스텀 색상 picker 연결 (추후 확장)
-          },
-          child: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.grey.shade300),
+        Builder(
+          builder: (ctx) => GestureDetector(
+            onTap: () async {
+              final picked = await showDialog<String?>(
+                context: ctx,
+                builder: (_) => const _CustomColorDialog(),
+              );
+              if (picked != null) onChanged(picked);
+            },
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: const Icon(Icons.add, size: 18, color: Colors.grey),
             ),
-            child: const Icon(Icons.add, size: 18, color: Colors.grey),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CustomColorDialog extends StatefulWidget {
+  const _CustomColorDialog();
+  @override
+  State<_CustomColorDialog> createState() => _CustomColorDialogState();
+}
+
+class _CustomColorDialogState extends State<_CustomColorDialog> {
+  final _hexCtrl = TextEditingController(text: '7C6AFA');
+  String? _error;
+
+  // Predefined color palette (Material-inspired)
+  static const _palette = [
+    // Row 1: Purples/Blues
+    '#6200EA', '#3D5AFE', '#2979FF', '#0091EA',
+    // Row 2: Greens/Teals
+    '#00BFA5', '#00C853', '#64DD17', '#AEEA00',
+    // Row 3: Yellows/Oranges
+    '#FFD600', '#FFAB00', '#FF6D00', '#DD2C00',
+    // Row 4: Reds/Pinks
+    '#D50000', '#C51162', '#AA00FF', '#6200EA',
+    // Row 5: Darks/Neutrals
+    '#263238', '#37474F', '#546E7A', '#90A4AE',
+  ];
+
+  @override
+  void dispose() {
+    _hexCtrl.dispose();
+    super.dispose();
+  }
+
+  Color? _tryParseHex(String hex) {
+    try {
+      final clean = hex.replaceFirst('#', '').padLeft(6, '0');
+      if (clean.length != 6) return null;
+      return Color(int.parse('FF$clean', radix: 16));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final previewColor = _tryParseHex(_hexCtrl.text);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('색상 선택',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
+                if (previewColor != null)
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: previewColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: previewColor.withValues(alpha: 0.4),
+                          blurRadius: 6,
+                        )
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Hex input
+            TextField(
+              controller: _hexCtrl,
+              onChanged: (_) => setState(() => _error = null),
+              maxLength: 7,
+              decoration: InputDecoration(
+                prefixText: '#',
+                hintText: '7C6AFA',
+                errorText: _error,
+                counterText: '',
+                filled: true,
+                fillColor: const Color(0xFFF7F7FB),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF7C6AFA)),
+                ),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Color palette grid
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1,
+              ),
+              itemCount: _palette.length,
+              itemBuilder: (_, i) {
+                final hex = _palette[i];
+                final c = Color(int.parse(
+                    hex.replaceFirst('#', '0xFF')));
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _hexCtrl.text = hex.replaceFirst('#', '');
+                    });
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: c,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('취소',
+                        style: TextStyle(color: Colors.black87)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      final hex = _hexCtrl.text.trim();
+                      final color = _tryParseHex(hex);
+                      if (color == null) {
+                        setState(
+                            () => _error = '올바른 색상 코드를 입력해주세요');
+                        return;
+                      }
+                      final normalized =
+                          '#${hex.replaceFirst('#', '').toUpperCase().padLeft(6, '0')}';
+                      Navigator.of(context).pop(normalized);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7C6AFA),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('적용'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

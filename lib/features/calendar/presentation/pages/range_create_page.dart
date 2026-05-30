@@ -10,6 +10,11 @@ import '../../domain/usecases/create_event_usecase.dart';
 import '../providers/calendar_providers.dart';
 import '../widgets/color_picker_row.dart';
 import '../widgets/mini_calendar_picker.dart';
+import '../../../friend/domain/entities/friend_entity.dart';
+import '../../../friend/presentation/providers/friend_providers.dart';
+
+// ── 알림 모드 ──────────────────────────────────────────────────────────
+enum _RangeAlarmMode { none, sameDay9am, thirtyMin, oneHour, oneDay, custom }
 
 class RangeCreatePage extends ConsumerStatefulWidget {
   const RangeCreatePage({super.key});
@@ -25,10 +30,42 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
   String _color = '#7C6AFA';
   bool _isLoading = false;
 
+  // 알림
+  _RangeAlarmMode _alarmMode = _RangeAlarmMode.sameDay9am;
+  TimeOfDay _customAlarmTime = const TimeOfDay(hour: 9, minute: 0);
+
+  // 친구 태그
+  FriendEntity? _taggedFriend;
+
   @override
   void dispose() {
     _titleCtrl.dispose();
     super.dispose();
+  }
+
+  int? _computeNotifyBeforeMin() {
+    switch (_alarmMode) {
+      case _RangeAlarmMode.none:
+        return null;
+      case _RangeAlarmMode.thirtyMin:
+        return 30;
+      case _RangeAlarmMode.oneHour:
+        return 60;
+      case _RangeAlarmMode.oneDay:
+        return 1440;
+      case _RangeAlarmMode.sameDay9am:
+        if (_startDate == null) return null;
+        final eventMins = _startDate!.hour * 60 + _startDate!.minute;
+        final diff = eventMins - 9 * 60;
+        return diff > 0 ? diff : null;
+      case _RangeAlarmMode.custom:
+        if (_startDate == null) return null;
+        final eventMins = _startDate!.hour * 60 + _startDate!.minute;
+        final customMins =
+            _customAlarmTime.hour * 60 + _customAlarmTime.minute;
+        final diff = eventMins - customMins;
+        return diff > 0 ? diff : null;
+    }
   }
 
   Future<void> _submit() async {
@@ -61,7 +98,7 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                 endAt: _endDate!,
                 color: _color,
                 isDday: false,
-                notifyBeforeMin: _notifyBeforeMin,
+                notifyBeforeMin: _computeNotifyBeforeMin(),
                 status: EventStatus.pending,
                 visibility: EventVisibility.public,
                 createdAt: now,
@@ -90,65 +127,125 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
     }
   }
 
-  int? _notifyBeforeMin = 60;
-
   void _showAlarmPicker() {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) {
-        const options = [
-          (label: '없음', minutes: null as int?),
-          (label: '5분 전', minutes: 5 as int?),
-          (label: '15분 전', minutes: 15 as int?),
-          (label: '30분 전', minutes: 30 as int?),
-          (label: '1시간 전', minutes: 60 as int?),
-          (label: '1일 전', minutes: 1440 as int?),
-        ];
-        return SafeArea(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Container(
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(height: 12),
               const Text('알림 설정',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              ...options.map((opt) => ListTile(
-                    title: Text(opt.label),
-                    trailing: _notifyBeforeMin == opt.minutes
+              const SizedBox(height: 4),
+              ...[
+                (_RangeAlarmMode.none, '없음', null as IconData?),
+                (_RangeAlarmMode.sameDay9am, '당일 오전 9시',
+                    Icons.wb_sunny_outlined as IconData?),
+                (_RangeAlarmMode.thirtyMin, '30분 전', null as IconData?),
+                (_RangeAlarmMode.oneHour, '1시간 전', null as IconData?),
+                (_RangeAlarmMode.oneDay, '하루 전', null as IconData?),
+              ].map((opt) => ListTile(
+                    title: Text(opt.$2),
+                    leading: opt.$3 != null
+                        ? Icon(opt.$3,
+                            color: const Color(0xFF7C6AFA), size: 20)
+                        : null,
+                    trailing: _alarmMode == opt.$1
                         ? const Icon(Icons.check, color: Color(0xFF7C6AFA))
                         : null,
                     onTap: () {
-                      setState(() => _notifyBeforeMin = opt.minutes);
-                      Navigator.of(context).pop();
+                      setState(() => _alarmMode = opt.$1);
+                      Navigator.of(ctx).pop();
                     },
                   )),
+              ListTile(
+                title: const Text('사용자화'),
+                leading: const Icon(Icons.tune,
+                    color: Color(0xFF7C6AFA), size: 20),
+                trailing: _alarmMode == _RangeAlarmMode.custom
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${_customAlarmTime.hour.toString().padLeft(2, '0')}:${_customAlarmTime.minute.toString().padLeft(2, '0')}',
+                            style: const TextStyle(
+                                color: Color(0xFF7C6AFA),
+                                fontWeight: FontWeight.w600),
+                          ),
+                          const Icon(Icons.check, color: Color(0xFF7C6AFA)),
+                        ],
+                      )
+                    : null,
+                onTap: () async {
+                  final picked = await showTimePicker(
+                    context: ctx,
+                    initialTime: _customAlarmTime,
+                    builder: (c, child) => Theme(
+                      data: Theme.of(c).copyWith(
+                          colorScheme: const ColorScheme.light(
+                              primary: Color(0xFF7C6AFA))),
+                      child: child!,
+                    ),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _alarmMode = _RangeAlarmMode.custom;
+                      _customAlarmTime = picked;
+                    });
+                    if (ctx.mounted) Navigator.of(ctx).pop();
+                  }
+                },
+              ),
               const SizedBox(height: 8),
             ],
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  void _showFriendPicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _FriendPickerSheet(
+        onSelected: (friend) {
+          setState(() => _taggedFriend = friend);
+          Navigator.of(context).pop();
+        },
+      ),
     );
   }
 
   String _alarmLabel() {
-    if (_notifyBeforeMin == null) return '없음';
-    if (_notifyBeforeMin == 5) return '5분 전';
-    if (_notifyBeforeMin == 15) return '15분 전';
-    if (_notifyBeforeMin == 30) return '30분 전';
-    if (_notifyBeforeMin == 60) return '1시간 전';
-    if (_notifyBeforeMin == 1440) return '1일 전';
-    return '$_notifyBeforeMin분 전';
+    switch (_alarmMode) {
+      case _RangeAlarmMode.none:
+        return '없음';
+      case _RangeAlarmMode.sameDay9am:
+        return '당일 오전 9시';
+      case _RangeAlarmMode.thirtyMin:
+        return '30분 전';
+      case _RangeAlarmMode.oneHour:
+        return '1시간 전';
+      case _RangeAlarmMode.oneDay:
+        return '하루 전';
+      case _RangeAlarmMode.custom:
+        return '${_customAlarmTime.hour.toString().padLeft(2, '0')}:${_customAlarmTime.minute.toString().padLeft(2, '0')} 알림';
+    }
   }
 
   String _fmtDate(DateTime? dt) {
@@ -216,8 +313,8 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
               selectedStart: _startDate,
               selectedEnd: _endDate,
               onRangeSelected: (s, e) => setState(() {
-                _startDate = s;
-                _endDate = e;
+                _startDate = DateTime(s.year, s.month, s.day, 0, 0);
+                _endDate = DateTime(e.year, e.month, e.day, 23, 59);
               }),
             ),
           ),
@@ -252,28 +349,74 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                   child: Text('장소 설정',
                       style: TextStyle(fontSize: 14, color: Colors.grey)),
                 ),
-                TextButton(
-                  onPressed: () => context.push(AppRoutes.aiMidpoint),
-                  style: TextButton.styleFrom(
-                    backgroundColor:
-                        const Color(0xFF7C6AFA).withValues(alpha: 0.1),
-                    foregroundColor: const Color(0xFF7C6AFA),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    textStyle: const TextStyle(fontSize: 12),
+                if (_taggedFriend != null)
+                  TextButton(
+                    onPressed: () async {
+                      final result = await context.push<String>(
+                        AppRoutes.aiMidpoint,
+                        extra: _taggedFriend!.friendId,
+                      );
+                      if (result != null && mounted) {
+                        // location display is read-only in range; no controller needed
+                      }
+                    },
+                    style: TextButton.styleFrom(
+                      backgroundColor:
+                          const Color(0xFF7C6AFA).withValues(alpha: 0.1),
+                      foregroundColor: const Color(0xFF7C6AFA),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
+                    child: const Text('*AI 중간지점'),
                   ),
-                  child: const Text('*AI 중간지점'),
-                ),
               ],
             ),
           ),
           const SizedBox(height: 4),
 
           // 친구 태그
-          _RowTile(
-            icon: Icons.person_add_alt_outlined,
-            child: const Text('친구 태그',
-                style: TextStyle(fontSize: 14, color: Colors.grey)),
+          GestureDetector(
+            onTap: _showFriendPicker,
+            child: _RowTile(
+              icon: Icons.person_add_alt_outlined,
+              child: _taggedFriend == null
+                  ? const Text('친구를 태그하세요',
+                      style: TextStyle(fontSize: 14, color: Colors.grey))
+                  : Row(
+                      children: [
+                        if (_taggedFriend!.friendProfile.avatarUrl != null)
+                          CircleAvatar(
+                            radius: 12,
+                            backgroundImage: NetworkImage(
+                                _taggedFriend!.friendProfile.avatarUrl!),
+                          )
+                        else
+                          CircleAvatar(
+                            radius: 12,
+                            backgroundColor: const Color(0xFF7C6AFA)
+                                .withValues(alpha: 0.2),
+                            child: Text(
+                              (_taggedFriend!.friendProfile.nickname ?? '?')[0],
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF7C6AFA),
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        const SizedBox(width: 8),
+                        Text(_taggedFriend!.friendProfile.nickname ?? '',
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w500)),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => setState(() => _taggedFriend = null),
+                          child: const Icon(Icons.close,
+                              size: 16, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+            ),
           ),
           const SizedBox(height: 4),
 
@@ -347,6 +490,97 @@ class _RowTile extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(child: child),
           ?trailing,
+        ],
+      ),
+    );
+  }
+}
+
+// ── 친구 선택 바텀시트 ──────────────────────────────────────────────
+
+class _FriendPickerSheet extends ConsumerWidget {
+  const _FriendPickerSheet({required this.onSelected});
+  final ValueChanged<FriendEntity> onSelected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final friendsAsync =
+        ref.watch(friendsProvider(FriendSortType.alphabetical));
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (_, scrollCtrl) => Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text('친구 태그',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Expanded(
+            child: friendsAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, s) =>
+                  const Center(child: Text('친구 목록을 불러오지 못했어요')),
+              data: (friends) {
+                if (friends.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.people_outline,
+                            size: 48, color: Colors.grey.shade300),
+                        const SizedBox(height: 8),
+                        Text('아직 친구가 없어요',
+                            style: TextStyle(color: Colors.grey.shade400)),
+                      ],
+                    ),
+                  );
+                }
+                return ListView.separated(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 8),
+                  itemCount: friends.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
+                  itemBuilder: (context, i) {
+                    final f = friends[i];
+                    return ListTile(
+                      leading: f.friendProfile.avatarUrl != null
+                          ? CircleAvatar(
+                              backgroundImage: NetworkImage(
+                                  f.friendProfile.avatarUrl!),
+                            )
+                          : CircleAvatar(
+                              backgroundColor: const Color(0xFF7C6AFA)
+                                  .withValues(alpha: 0.2),
+                              child: Text(
+                                (f.friendProfile.nickname ?? '?')[0],
+                                style: const TextStyle(
+                                    color: Color(0xFF7C6AFA),
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                      title: Text(f.friendProfile.nickname ?? ''),
+                      onTap: () => onSelected(f),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
