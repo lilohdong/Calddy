@@ -40,8 +40,9 @@ abstract class AppRoutes {
   static String postEditPath(String postId)   => '/feed/post/$postId/edit';
 
   // ── Friend ──────────────────────────────────────────────────
+  static const String friendSearch     = '/friends/search';
   static const String friendCalendar   = '/friends/:friendId/calendar';
-  static const String mergeCalendar    = '/friends/:friendId/merge';
+  static const String mergeCalendar    = '/friends/merge';
 
   // ── Appointment ─────────────────────────────────────────────
   static const String appointmentCreate  = '/home/appointment/create';

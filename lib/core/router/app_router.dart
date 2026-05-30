@@ -23,6 +23,7 @@ import '../../features/feed/presentation/pages/post_detail_page.dart';
 import '../../features/feed/presentation/pages/post_edit_page.dart';
 import '../../features/feed/domain/entities/post_entity.dart';
 import '../../features/friend/presentation/pages/friend_calendar_page.dart';
+import '../../features/friend/presentation/pages/friend_search_page.dart';
 import '../../features/friend/presentation/pages/friends_page.dart';
 import '../../features/friend/presentation/pages/merge_calendar_page.dart';
 import '../../features/map/presentation/pages/place_picker_page.dart';
@@ -217,14 +218,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, _) => const FriendsPage(),
             routes: [
               GoRoute(
-                path: ':friendId/calendar',
-                builder: (_, s) => FriendCalendarPage(
-                  friendId: s.pathParameters['friendId']!,
-                ),
+                path: 'search',
+                builder: (_, _) => const FriendSearchPage(),
               ),
               GoRoute(
-                path: ':friendId/merge',
-                builder: (_, s) => MergeCalendarPage(
+                path: 'merge',
+                builder: (_, _) => const MergeCalendarPage(),
+              ),
+              GoRoute(
+                path: ':friendId/calendar',
+                builder: (_, s) => FriendCalendarPage(
                   friendId: s.pathParameters['friendId']!,
                 ),
               ),
