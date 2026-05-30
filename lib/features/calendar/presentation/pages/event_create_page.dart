@@ -12,6 +12,9 @@ import '../widgets/color_picker_row.dart';
 import '../../../friend/domain/entities/friend_entity.dart';
 import '../../../friend/presentation/providers/friend_providers.dart';
 
+// ── 알림 모드 ──────────────────────────────────────────────────────────
+enum _AlarmMode { none, thirtyMin, oneHour, oneDay, sameDay9am, custom }
+
 class EventCreatePage extends ConsumerStatefulWidget {
   const EventCreatePage({super.key});
 
@@ -25,15 +28,24 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   final _locationCtrl = TextEditingController();
   final _memoCtrl = TextEditingController();
 
-  DateTime _startAt = DateTime.now().copyWith(second: 0, millisecond: 0);
-  DateTime _endAt = DateTime.now()
-      .copyWith(second: 0, millisecond: 0)
-      .add(const Duration(hours: 1));
+  DateTime _startAt = DateTime(
+      DateTime.now().year, DateTime.now().month, DateTime.now().day, 9, 0);
+  DateTime _endAt = DateTime(
+      DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59);
+
   String _color = '#7C6AFA';
   bool _isLoading = false;
   bool _isDday = false;
-  int? _notifyBeforeMin = 60;
+
+  // 알림
+  _AlarmMode _alarmMode = _AlarmMode.sameDay9am;
+  TimeOfDay _customAlarmTime = const TimeOfDay(hour: 9, minute: 0);
+
+  // 반복
   RecurrenceType? _recurrenceType;
+  int? _recurrenceWeekday;
+  int? _recurrenceMonthDay;
+
   FriendEntity? _taggedFriend;
 
   @override
@@ -44,6 +56,29 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
     super.dispose();
   }
 
+  int? _computeNotifyBeforeMin() {
+    switch (_alarmMode) {
+      case _AlarmMode.none:
+        return null;
+      case _AlarmMode.thirtyMin:
+        return 30;
+      case _AlarmMode.oneHour:
+        return 60;
+      case _AlarmMode.oneDay:
+        return 1440;
+      case _AlarmMode.sameDay9am:
+        final eventMins = _startAt.hour * 60 + _startAt.minute;
+        final diff = eventMins - 9 * 60;
+        return diff > 0 ? diff : null;
+      case _AlarmMode.custom:
+        final eventMins = _startAt.hour * 60 + _startAt.minute;
+        final customMins =
+            _customAlarmTime.hour * 60 + _customAlarmTime.minute;
+        final diff = eventMins - customMins;
+        return diff > 0 ? diff : null;
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -51,6 +86,14 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
       final currentUserId =
           Supabase.instance.client.auth.currentUser?.id ?? '';
       final now = DateTime.now();
+
+      List<int>? recurrenceDays;
+      if (_recurrenceType == RecurrenceType.weekly) {
+        recurrenceDays = [_recurrenceWeekday ?? _startAt.weekday];
+      } else if (_recurrenceType == RecurrenceType.monthly) {
+        recurrenceDays = [_recurrenceMonthDay ?? _startAt.day];
+      }
+
       await ref.read(createEventUseCaseProvider).call(
             CreateEventParams(
               event: EventEntity(
@@ -67,11 +110,12 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                 memo: _memoCtrl.text.trim().isEmpty
                     ? null
                     : _memoCtrl.text.trim(),
-                notifyBeforeMin: _notifyBeforeMin,
+                notifyBeforeMin: _computeNotifyBeforeMin(),
                 status: EventStatus.pending,
                 visibility: EventVisibility.public,
                 createdAt: now,
                 recurrenceType: _recurrenceType,
+                recurrenceDays: recurrenceDays,
               ),
             ),
           );
@@ -96,94 +140,109 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
       context: context,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) {
-        const options = [
-          (label: '없음', minutes: null as int?),
-          (label: '5분 전', minutes: 5 as int?),
-          (label: '15분 전', minutes: 15 as int?),
-          (label: '30분 전', minutes: 30 as int?),
-          (label: '1시간 전', minutes: 60 as int?),
-          (label: '1일 전', minutes: 1440 as int?),
-        ];
-        return SafeArea(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Container(
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(height: 12),
               const Text('알림 설정',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              ...options.map((opt) => ListTile(
-                    title: Text(opt.label),
-                    trailing: _notifyBeforeMin == opt.minutes
+              const SizedBox(height: 4),
+              ...[
+                (_AlarmMode.none, '없음', null as IconData?),
+                (_AlarmMode.sameDay9am, '당일 오전 9시',
+                    Icons.wb_sunny_outlined as IconData?),
+                (_AlarmMode.thirtyMin, '30분 전', null as IconData?),
+                (_AlarmMode.oneHour, '1시간 전', null as IconData?),
+                (_AlarmMode.oneDay, '하루 전', null as IconData?),
+              ].map((opt) => ListTile(
+                    title: Text(opt.$2),
+                    leading: opt.$3 != null
+                        ? Icon(opt.$3,
+                            color: const Color(0xFF7C6AFA), size: 20)
+                        : null,
+                    trailing: _alarmMode == opt.$1
                         ? const Icon(Icons.check, color: Color(0xFF7C6AFA))
                         : null,
                     onTap: () {
-                      setState(() => _notifyBeforeMin = opt.minutes);
-                      Navigator.of(context).pop();
+                      setState(() => _alarmMode = opt.$1);
+                      Navigator.of(ctx).pop();
                     },
                   )),
+              ListTile(
+                title: const Text('사용자화'),
+                leading: const Icon(Icons.tune,
+                    color: Color(0xFF7C6AFA), size: 20),
+                trailing: _alarmMode == _AlarmMode.custom
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${_customAlarmTime.hour.toString().padLeft(2, '0')}:${_customAlarmTime.minute.toString().padLeft(2, '0')}',
+                            style: const TextStyle(
+                                color: Color(0xFF7C6AFA),
+                                fontWeight: FontWeight.w600),
+                          ),
+                          const Icon(Icons.check, color: Color(0xFF7C6AFA)),
+                        ],
+                      )
+                    : null,
+                onTap: () async {
+                  final picked = await showTimePicker(
+                    context: ctx,
+                    initialTime: _customAlarmTime,
+                    builder: (c, child) => Theme(
+                      data: Theme.of(c).copyWith(
+                          colorScheme: const ColorScheme.light(
+                              primary: Color(0xFF7C6AFA))),
+                      child: child!,
+                    ),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _alarmMode = _AlarmMode.custom;
+                      _customAlarmTime = picked;
+                    });
+                    if (ctx.mounted) Navigator.of(ctx).pop();
+                  }
+                },
+              ),
               const SizedBox(height: 8),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
   void _showRepeatPicker() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) {
-        final options = [
-          (label: '없음', type: null as RecurrenceType?),
-          (label: '매일', type: RecurrenceType.daily as RecurrenceType?),
-          (label: '매주', type: RecurrenceType.weekly as RecurrenceType?),
-          (label: '매월', type: RecurrenceType.monthly as RecurrenceType?),
-        ];
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text('반복 설정',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              ...options.map((opt) => ListTile(
-                    title: Text(opt.label),
-                    trailing: _recurrenceType == opt.type
-                        ? const Icon(Icons.check, color: Color(0xFF7C6AFA))
-                        : null,
-                    onTap: () {
-                      setState(() => _recurrenceType = opt.type);
-                      Navigator.of(context).pop();
-                    },
-                  )),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
+      builder: (ctx) => _RepeatPickerSheet(
+        initialType: _recurrenceType,
+        initialWeekday: _recurrenceWeekday,
+        initialMonthDay: _recurrenceMonthDay,
+        startDate: _startAt,
+        onChanged: (type, weekday, monthDay) {
+          setState(() {
+            _recurrenceType = type;
+            _recurrenceWeekday = weekday;
+            _recurrenceMonthDay = monthDay;
+          });
+        },
+      ),
     );
   }
 
@@ -203,26 +262,42 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   }
 
   String _alarmLabel() {
-    if (_notifyBeforeMin == null) return '없음';
-    if (_notifyBeforeMin == 5) return '5분 전';
-    if (_notifyBeforeMin == 15) return '15분 전';
-    if (_notifyBeforeMin == 30) return '30분 전';
-    if (_notifyBeforeMin == 60) return '1시간 전';
-    if (_notifyBeforeMin == 1440) return '1일 전';
-    return '$_notifyBeforeMin분 전';
+    switch (_alarmMode) {
+      case _AlarmMode.none:
+        return '없음';
+      case _AlarmMode.sameDay9am:
+        return '당일 오전 9시';
+      case _AlarmMode.thirtyMin:
+        return '30분 전';
+      case _AlarmMode.oneHour:
+        return '1시간 전';
+      case _AlarmMode.oneDay:
+        return '하루 전';
+      case _AlarmMode.custom:
+        return '${_customAlarmTime.hour.toString().padLeft(2, '0')}:${_customAlarmTime.minute.toString().padLeft(2, '0')} 알림';
+    }
   }
 
   String _repeatLabel() {
-    switch (_recurrenceType) {
-      case RecurrenceType.daily:
-        return '매일';
-      case RecurrenceType.weekly:
-        return '매주';
-      case RecurrenceType.monthly:
-        return '매월';
-      case null:
-        return '없음';
+    if (_recurrenceType == null) return '없음';
+    if (_recurrenceType == RecurrenceType.daily) return '매일';
+    if (_recurrenceType == RecurrenceType.weekly) {
+      const names = [
+        '',
+        '매주 월요일',
+        '매주 화요일',
+        '매주 수요일',
+        '매주 목요일',
+        '매주 금요일',
+        '매주 토요일',
+        '매주 일요일'
+      ];
+      return names[_recurrenceWeekday ?? _startAt.weekday];
     }
+    if (_recurrenceType == RecurrenceType.monthly) {
+      return '매월 ${_recurrenceMonthDay ?? _startAt.day}일';
+    }
+    return '없음';
   }
 
   @override
@@ -285,23 +360,23 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
             ),
             const SizedBox(height: 16),
 
-            // 시작/종료
+            // 시작/종료 (날짜만)
             _SettingCard(
-              icon: Icons.access_time_outlined,
+              icon: Icons.calendar_today_outlined,
               child: Column(
                 children: [
-                  _DateTimeRow(
+                  _DateRow(
                     label: '시작',
                     value: _startAt,
                     onChanged: (dt) => setState(() {
                       _startAt = dt;
                       if (_endAt.isBefore(_startAt)) {
-                        _endAt = _startAt.add(const Duration(hours: 1));
+                        _endAt = _startAt;
                       }
                     }),
                   ),
                   const Divider(height: 16),
-                  _DateTimeRow(
+                  _DateRow(
                     label: '종료',
                     value: _endAt,
                     onChanged: (dt) => setState(() => _endAt = dt),
@@ -523,8 +598,8 @@ class _SettingCard extends StatelessWidget {
   }
 }
 
-class _DateTimeRow extends StatelessWidget {
-  const _DateTimeRow({
+class _DateRow extends StatelessWidget {
+  const _DateRow({
     required this.label,
     required this.value,
     required this.onChanged,
@@ -539,8 +614,6 @@ class _DateTimeRow extends StatelessWidget {
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     final dateStr =
         '${value.year}년 ${value.month}월 ${value.day}일 (${weekdays[value.weekday % 7]})';
-    final timeStr =
-        '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 
     return GestureDetector(
       onTap: () async {
@@ -548,32 +621,17 @@ class _DateTimeRow extends StatelessWidget {
           context: context,
           initialDate: value,
           firstDate: DateTime(2020),
-          lastDate: DateTime(2030),
+          lastDate: DateTime(2035),
           builder: (ctx, child) => Theme(
             data: Theme.of(ctx).copyWith(
-              colorScheme: const ColorScheme.light(
-                primary: Color(0xFF7C6AFA),
-              ),
+              colorScheme: const ColorScheme.light(primary: Color(0xFF7C6AFA)),
             ),
             child: child!,
           ),
         );
-        if (date == null || !context.mounted) return;
-        final time = await showTimePicker(
-          context: context,
-          initialTime: TimeOfDay.fromDateTime(value),
-          builder: (ctx, child) => Theme(
-            data: Theme.of(ctx).copyWith(
-              colorScheme: const ColorScheme.light(
-                primary: Color(0xFF7C6AFA),
-              ),
-            ),
-            child: child!,
-          ),
-        );
-        if (time == null) return;
-        onChanged(
-            date.copyWith(hour: time.hour, minute: time.minute, second: 0));
+        if (date == null) return;
+        onChanged(DateTime(
+            date.year, date.month, date.day, value.hour, value.minute));
       },
       child: Row(
         children: [
@@ -582,22 +640,243 @@ class _DateTimeRow extends StatelessWidget {
             child: Text(label,
                 style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ),
-          Text(dateStr, style: const TextStyle(fontSize: 14)),
-          const Spacer(),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF7C6AFA).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(timeStr,
+          Expanded(
+            child: Text(dateStr,
                 style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF7C6AFA),
-                    fontWeight: FontWeight.w600)),
+                    fontSize: 14, fontWeight: FontWeight.w500)),
           ),
+          const Icon(Icons.calendar_today_outlined,
+              size: 16, color: Color(0xFF7C6AFA)),
         ],
+      ),
+    );
+  }
+}
+
+// ── 반복 설정 바텀시트 ──────────────────────────────────────────────
+
+class _RepeatPickerSheet extends StatefulWidget {
+  const _RepeatPickerSheet({
+    required this.initialType,
+    required this.initialWeekday,
+    required this.initialMonthDay,
+    required this.startDate,
+    required this.onChanged,
+  });
+
+  final RecurrenceType? initialType;
+  final int? initialWeekday;
+  final int? initialMonthDay;
+  final DateTime startDate;
+  final void Function(RecurrenceType? type, int? weekday, int? monthDay)
+      onChanged;
+
+  @override
+  State<_RepeatPickerSheet> createState() => _RepeatPickerSheetState();
+}
+
+class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
+  RecurrenceType? _type;
+  int? _weekday;
+  int? _monthDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _type = widget.initialType;
+    _weekday = widget.initialWeekday ?? widget.startDate.weekday;
+    _monthDay = widget.initialMonthDay ?? widget.startDate.day;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('반복 설정',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              // 반복 유형 선택
+              Wrap(
+                spacing: 8,
+                children: [
+                  _TypeChip(
+                      label: '없음',
+                      selected: _type == null,
+                      onTap: () => setState(() => _type = null)),
+                  _TypeChip(
+                      label: '매일',
+                      selected: _type == RecurrenceType.daily,
+                      onTap: () =>
+                          setState(() => _type = RecurrenceType.daily)),
+                  _TypeChip(
+                      label: '매주',
+                      selected: _type == RecurrenceType.weekly,
+                      onTap: () =>
+                          setState(() => _type = RecurrenceType.weekly)),
+                  _TypeChip(
+                      label: '매월',
+                      selected: _type == RecurrenceType.monthly,
+                      onTap: () =>
+                          setState(() => _type = RecurrenceType.monthly)),
+                ],
+              ),
+              // 매주: 요일 선택
+              if (_type == RecurrenceType.weekly) ...[
+                const SizedBox(height: 16),
+                const Text('요일 선택',
+                    style: TextStyle(fontSize: 13, color: Colors.grey)),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: List.generate(7, (i) {
+                    final wd = i + 1; // 1=Mon..7=Sun
+                    const names = ['월', '화', '수', '목', '금', '토', '일'];
+                    final isSelected = _weekday == wd;
+                    return GestureDetector(
+                      onTap: () => setState(() => _weekday = wd),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF7C6AFA)
+                              : Colors.grey.shade100,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(names[i],
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.black87,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              )),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+              // 매월: 날짜 선택
+              if (_type == RecurrenceType.monthly) ...[
+                const SizedBox(height: 16),
+                const Text('날짜 선택',
+                    style: TextStyle(fontSize: 13, color: Colors.grey)),
+                const SizedBox(height: 8),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    childAspectRatio: 1,
+                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 4,
+                  ),
+                  itemCount: 31,
+                  itemBuilder: (_, i) {
+                    final day = i + 1;
+                    final isSelected = _monthDay == day;
+                    return GestureDetector(
+                      onTap: () => setState(() => _monthDay = day),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF7C6AFA)
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text('$day',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.black87,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              )),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    widget.onChanged(_type, _weekday, _monthDay);
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C6AFA),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('확인'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TypeChip extends StatelessWidget {
+  const _TypeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF7C6AFA) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label,
+            style: TextStyle(
+              fontSize: 13,
+              color: selected ? Colors.white : Colors.black87,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            )),
       ),
     );
   }
@@ -611,8 +890,8 @@ class _FriendPickerSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final friendsAsync = ref.watch(
-        friendsProvider(FriendSortType.alphabetical));
+    final friendsAsync =
+        ref.watch(friendsProvider(FriendSortType.alphabetical));
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -632,15 +911,14 @@ class _FriendPickerSheet extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           const Text('친구 태그',
-              style: TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.bold)),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Expanded(
             child: friendsAsync.when(
-              loading: () => const Center(
-                  child: CircularProgressIndicator()),
-              error: (_, __) => const Center(
-                  child: Text('친구 목록을 불러오지 못했어요')),
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, s) =>
+                  const Center(child: Text('친구 목록을 불러오지 못했어요')),
               data: (friends) {
                 if (friends.isEmpty) {
                   return Center(
@@ -648,12 +926,10 @@ class _FriendPickerSheet extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.people_outline,
-                            size: 48,
-                            color: Colors.grey.shade300),
+                            size: 48, color: Colors.grey.shade300),
                         const SizedBox(height: 8),
                         Text('아직 친구가 없어요',
-                            style: TextStyle(
-                                color: Colors.grey.shade400)),
+                            style: TextStyle(color: Colors.grey.shade400)),
                       ],
                     ),
                   );
@@ -663,9 +939,8 @@ class _FriendPickerSheet extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 8),
                   itemCount: friends.length,
-                  separatorBuilder: (_, __) =>
-                      const Divider(height: 1),
-                  itemBuilder: (_, i) {
+                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  itemBuilder: (context, i) {
                     final f = friends[i];
                     return ListTile(
                       leading: f.friendProfile.avatarUrl != null

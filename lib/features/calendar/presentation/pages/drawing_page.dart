@@ -45,9 +45,13 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
     Colors.white: '#FFFFFF',
   };
 
-  DateTime get _parsedDate {
+  late final DateTime _date;
+
+  @override
+  void initState() {
+    super.initState();
     final p = widget.date.split('-');
-    return DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
+    _date = DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
   }
 
   Future<void> _save() async {
@@ -60,7 +64,7 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
               drawing: DrawingEntity(
                 id: '',
                 userId: currentUserId,
-                drawDate: _parsedDate,
+                drawDate: _date,
                 strokes: _strokes,
                 updatedAt: now,
               ),
@@ -87,7 +91,6 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final d = _parsedDate;
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     final isDark = _bgColor.computeLuminance() < 0.3;
 
@@ -137,12 +140,9 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
                   : null,
               onPanUpdate: _handwritingMode
                   ? (details) {
-                      setState(() {
-                        _currentPoints = [
-                          ..._currentPoints,
-                          [details.localPosition.dx, details.localPosition.dy],
-                        ];
-                      });
+                      _currentPoints.add(
+                          [details.localPosition.dx, details.localPosition.dy]);
+                      setState(() {});
                     }
                   : null,
               onPanEnd: _handwritingMode
@@ -173,7 +173,7 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${d.day}',
+                            '${_date.day}',
                             style: TextStyle(
                               fontSize: 48,
                               fontWeight: FontWeight.bold,
@@ -183,7 +183,7 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
                             ),
                           ),
                           Text(
-                            '${weekdays[d.weekday % 7]}요일',
+                            '${weekdays[_date.weekday % 7]}요일',
                             style: TextStyle(
                               fontSize: 14,
                               color: isDark
@@ -244,7 +244,10 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
             selectedBg: _bgColor,
             onBgChanged: (c) => setState(() => _bgColor = c),
             handwritingMode: _handwritingMode,
-            onHandwritingToggle: (v) => setState(() => _handwritingMode = v),
+            onHandwritingToggle: (v) => setState(() {
+              _handwritingMode = v;
+              if (!v) _currentPoints = [];
+            }),
             showStickerPanel: _showStickerPanel,
             onStickerToggle: () =>
                 setState(() => _showStickerPanel = !_showStickerPanel),
