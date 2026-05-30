@@ -19,13 +19,26 @@ class EventDetailPage extends ConsumerStatefulWidget {
 
 class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   bool _isDeleting = false;
+  bool _isSaving = false;
 
-  // 인라인 편집 상태
-  bool _isEditing = false;
+  // 편집 상태 (항상 편집 모드)
+  bool _initialized = false;
+  String? _editTitle;
   String? _editColor;
   DateTime? _editStartAt;
   DateTime? _editEndAt;
-  bool _isSaving = false;
+
+  void _initEditOnce(EventEntity event) {
+    if (_initialized) return;
+    // setState 없이 초기값 세팅 — 최초 data 로드 시 단 한 번만 실행
+    // build 외부(didChangeDependencies 등)로 옮기기 어려운 구조이므로
+    // _initialized 플래그로 멱등성 보장
+    _initialized = true;
+    _editTitle = event.title;
+    _editColor = event.color;
+    _editStartAt = event.startAt;
+    _editEndAt = event.endAt;
+  }
 
   Future<void> _delete(EventEntity event) async {
     final confirm = await showDialog<bool>(
@@ -50,9 +63,15 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   }
 
   Future<void> _saveEdit(EventEntity original) async {
+    final title = _editTitle?.trim() ?? '';
+    if (title.isEmpty) {
+      _showError('제목을 입력해주세요.');
+      return;
+    }
     setState(() => _isSaving = true);
     try {
       final updated = original.copyWith(
+        title: title,
         color: _editColor ?? original.color,
         startAt: _editStartAt ?? original.startAt,
         endAt: _editEndAt ?? original.endAt,
@@ -61,7 +80,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           .read(updateEventUseCaseProvider)
           .call(UpdateEventParams(event: updated));
       ref.invalidate(calendarDataProvider);
-      setState(() => _isEditing = false);
+      if (mounted) context.pop();
     } on CalendarFailure catch (e) {
       _showError(e.message);
     } catch (_) {
@@ -74,15 +93,6 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   void _showError(String msg) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
-  }
-
-  void _startEdit(EventEntity event) {
-    setState(() {
-      _isEditing = true;
-      _editColor = event.color;
-      _editStartAt = event.startAt;
-      _editEndAt = event.endAt;
-    });
   }
 
   @override
@@ -104,17 +114,9 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
         ),
         centerTitle: true,
         actions: [
-          if (!_isEditing)
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, color: Color(0xFF7C6AFA)),
-              onPressed: () => calendarAsync.whenData((d) {
-                final event = d.events.where((e) => e.id == widget.eventId).firstOrNull;
-                if (event != null) _startEdit(event);
-              }),
-            ),
           calendarAsync.when(
             loading: () => const SizedBox(),
-            error: (_, _s) => const SizedBox(),
+            error: (_, e2) => const SizedBox(),
             data: (data) {
               final event = data.events.where((e) => e.id == widget.eventId).firstOrNull;
               if (event == null) return const SizedBox();
@@ -143,210 +145,113 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           if (event == null) {
             return const Center(child: Text('일정을 찾을 수 없습니다.'));
           }
-          if (_isEditing) {
-            return _EditBody(
-              event: event,
-              editColor: _editColor ?? event.color,
-              editStartAt: _editStartAt ?? event.startAt,
-              editEndAt: _editEndAt ?? event.endAt,
-              isSaving: _isSaving,
-              onColorChanged: (c) => setState(() => _editColor = c),
-              onStartChanged: (dt) => setState(() => _editStartAt = dt),
-              onEndChanged: (dt) => setState(() => _editEndAt = dt),
-              onSave: () => _saveEdit(event),
-              onCancel: () => setState(() => _isEditing = false),
-            );
-          }
-          return _DetailBody(event: event);
+          _initEditOnce(event);
+          return _EditBody(
+            event: event,
+            editTitle: _editTitle!,
+            editColor: _editColor ?? event.color,
+            editStartAt: _editStartAt ?? event.startAt,
+            editEndAt: _editEndAt ?? event.endAt,
+            isSaving: _isSaving,
+            onTitleChanged: (t) => setState(() => _editTitle = t),
+            onColorChanged: (c) => setState(() => _editColor = c),
+            onStartChanged: (dt) => setState(() => _editStartAt = dt),
+            onEndChanged: (dt) => setState(() => _editEndAt = dt),
+            onSave: () => _saveEdit(event),
+          );
         },
       ),
     );
   }
 }
 
-// ── 상세 뷰 ──────────────────────────────────────────────────────────────────
-class _DetailBody extends StatelessWidget {
-  const _DetailBody({required this.event});
-  final EventEntity event;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = ColorPickerRow.fromHex(event.color);
-    final weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        // 컬러 + 제목 헤더
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  event.title,
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-              ),
-              if (event.isDday)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text('D-Day',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold)),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // 날짜 카드
-        _InfoCard(
-          icon: Icons.calendar_today_outlined,
-          iconColor: const Color(0xFF7C6AFA),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${event.startAt.year}년 ${event.startAt.month}월 ${event.startAt.day}일 (${weekdays[event.startAt.weekday % 7]})',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-              ),
-              if (!_isSameDay(event.startAt, event.endAt)) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.arrow_forward, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${event.endAt.year}년 ${event.endAt.month}월 ${event.endAt.day}일 (${weekdays[event.endAt.weekday % 7]})',
-                      style: const TextStyle(fontSize: 13, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-
-        // 장소
-        if (event.location != null)
-          _InfoCard(
-            icon: Icons.location_on_outlined,
-            iconColor: Colors.orange,
-            child: Text(event.location!, style: const TextStyle(fontSize: 14)),
-          ),
-        if (event.location != null) const SizedBox(height: 8),
-
-        // 메모
-        if (event.memo != null)
-          _InfoCard(
-            icon: Icons.sticky_note_2_outlined,
-            iconColor: Colors.teal,
-            child: Text(event.memo!,
-                style: const TextStyle(fontSize: 14, height: 1.5)),
-          ),
-        if (event.memo != null) const SizedBox(height: 8),
-
-        // 반복
-        if (event.recurrenceType != null)
-          _InfoCard(
-            icon: Icons.repeat_outlined,
-            iconColor: Colors.purple,
-            child: Text(_recurrenceLabel(event),
-                style: const TextStyle(fontSize: 14)),
-          ),
-      ],
-    );
-  }
-
-  static bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-
-  static String _recurrenceLabel(EventEntity e) {
-    const weekdayNames = [
-      '',
-      '매주 월요일',
-      '매주 화요일',
-      '매주 수요일',
-      '매주 목요일',
-      '매주 금요일',
-      '매주 토요일',
-      '매주 일요일',
-    ];
-    switch (e.recurrenceType) {
-      case RecurrenceType.daily:
-        return '매일 반복';
-      case RecurrenceType.weekly:
-        final wd = e.recurrenceDays?.firstOrNull ?? e.startAt.weekday;
-        return weekdayNames[wd];
-      case RecurrenceType.monthly:
-        final d = e.recurrenceDays?.firstOrNull ?? e.startAt.day;
-        return '매월 ${d}일'; // ignore: unnecessary_brace_in_string_interps
-      case null:
-        return '반복 없음';
-    }
-  }
-}
-
-// ── 편집 뷰 ──────────────────────────────────────────────────────────────────
-class _EditBody extends StatelessWidget {
+// ── 편집 뷰 (항상 표시) ──────────────────────────────────────────────────────
+class _EditBody extends StatefulWidget {
   const _EditBody({
     required this.event,
+    required this.editTitle,
     required this.editColor,
     required this.editStartAt,
     required this.editEndAt,
     required this.isSaving,
+    required this.onTitleChanged,
     required this.onColorChanged,
     required this.onStartChanged,
     required this.onEndChanged,
     required this.onSave,
-    required this.onCancel,
   });
 
   final EventEntity event;
+  final String editTitle;
   final String editColor;
   final DateTime editStartAt;
   final DateTime editEndAt;
   final bool isSaving;
+  final ValueChanged<String> onTitleChanged;
   final ValueChanged<String> onColorChanged;
   final ValueChanged<DateTime> onStartChanged;
   final ValueChanged<DateTime> onEndChanged;
   final VoidCallback onSave;
-  final VoidCallback onCancel;
+
+  @override
+  State<_EditBody> createState() => _EditBodyState();
+}
+
+class _EditBodyState extends State<_EditBody> {
+  late final TextEditingController _titleCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl = TextEditingController(text: widget.editTitle);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+    final color = ColorPickerRow.fromHex(widget.editColor);
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // 제목 (편집 불가 — 표시만)
-        Text(event.title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        Text('제목 수정은 일정 삭제 후 재생성',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-        const SizedBox(height: 24),
+        // 제목
+        const Text('제목',
+            style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _titleCtrl,
+          onChanged: widget.onTitleChanged,
+          decoration: InputDecoration(
+            hintText: '일정 제목',
+            filled: true,
+            fillColor: const Color(0xFFF7F7FB),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                  color: color.withValues(alpha: 0.3)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                  color: color.withValues(alpha: 0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF7C6AFA)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 20),
 
         // 컬러
         const Text('컬러',
@@ -354,8 +259,8 @@ class _EditBody extends StatelessWidget {
                 fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
         const SizedBox(height: 10),
         ColorPickerRow(
-          selected: editColor,
-          onChanged: onColorChanged,
+          selected: widget.editColor,
+          onChanged: widget.onColorChanged,
         ),
         const SizedBox(height: 20),
 
@@ -365,9 +270,9 @@ class _EditBody extends StatelessWidget {
                 fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
         const SizedBox(height: 8),
         _DateButton(
-          value: editStartAt,
+          value: widget.editStartAt,
           weekdays: weekdays,
-          onChanged: onStartChanged,
+          onChanged: widget.onStartChanged,
         ),
         const SizedBox(height: 16),
 
@@ -377,50 +282,29 @@ class _EditBody extends StatelessWidget {
                 fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
         const SizedBox(height: 8),
         _DateButton(
-          value: editEndAt,
+          value: widget.editEndAt,
           weekdays: weekdays,
-          onChanged: onEndChanged,
+          onChanged: widget.onEndChanged,
         ),
         const SizedBox(height: 32),
 
-        // 저장/취소
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: onCancel,
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.grey.shade300),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: const Text('취소',
-                    style: TextStyle(color: Colors.black87)),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: isSaving ? null : onSave,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7C6AFA),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('저장'),
-              ),
-            ),
-          ],
+        // 저장
+        ElevatedButton(
+          onPressed: widget.isSaving ? null : widget.onSave,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF7C6AFA),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+          child: widget.isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : const Text('저장'),
         ),
       ],
     );
@@ -428,37 +312,6 @@ class _EditBody extends StatelessWidget {
 }
 
 // ── 공통 위젯 ────────────────────────────────────────────────────────────────
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({
-    required this.icon,
-    required this.iconColor,
-    required this.child,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F7FB),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: iconColor),
-          const SizedBox(width: 12),
-          Expanded(child: child),
-        ],
-      ),
-    );
-  }
-}
-
 class _DateButton extends StatelessWidget {
   const _DateButton({
     required this.value,
@@ -596,4 +449,3 @@ class _DeleteConfirmDialog extends StatelessWidget {
     );
   }
 }
-

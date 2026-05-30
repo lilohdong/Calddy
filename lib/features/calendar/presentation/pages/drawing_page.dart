@@ -58,45 +58,38 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
     _date = DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
   }
 
-  Future<String?> _captureAndUploadThumbnail(String userId) async {
-    try {
-      final context = _canvasKey.currentContext;
-      if (context == null) return null;
+  // 썸네일 캡처 → Storage 업로드 → 공개 URL 반환
+  // 실패 시 throw (호출자가 에러 처리)
+  Future<String> _captureAndUploadThumbnail(String userId) async {
+    final ctx = _canvasKey.currentContext;
+    if (ctx == null) throw Exception('캔버스 컨텍스트를 찾을 수 없습니다.');
 
-      final boundary =
-          context.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return null;
+    final boundary = ctx.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) throw Exception('캔버스 RenderObject를 찾을 수 없습니다.');
 
-      // Capture at 1.5x pixel ratio for reasonable quality
-      final image = await boundary.toImage(pixelRatio: 1.5);
-      final byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return null;
+    final image = await boundary.toImage(pixelRatio: 1.5);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) throw Exception('이미지 데이터 변환에 실패했습니다.');
 
-      final bytes = byteData.buffer.asUint8List();
-      final fileName =
-          'drawing_${userId}_${widget.date}.png';
+    final bytes = byteData.buffer.asUint8List();
+    final fileName = 'drawing_${userId}_${widget.date}.png';
 
-      // Upload (upsert) to Supabase Storage
-      await Supabase.instance.client.storage
-          .from('drawings')
-          .uploadBinary(
-            fileName,
-            bytes,
-            fileOptions: const FileOptions(
-              contentType: 'image/png',
-              upsert: true,
-            ),
-          );
+    await Supabase.instance.client.storage
+        .from('drawings')
+        .uploadBinary(
+          fileName,
+          bytes,
+          fileOptions: const FileOptions(
+            contentType: 'image/png',
+            upsert: true,
+          ),
+        );
 
-      // Return public URL
-      return Supabase.instance.client.storage
-          .from('drawings')
-          .getPublicUrl(fileName);
-    } catch (e) {
-      // Thumbnail failure is non-blocking — continue without URL
-      return null;
-    }
+    // 캐시 버스팅 타임스탬프 포함해서 반환 (NetworkImage 구버전 캐시 우회)
+    final publicUrl = Supabase.instance.client.storage
+        .from('drawings')
+        .getPublicUrl(fileName);
+    return '$publicUrl?t=${DateTime.now().millisecondsSinceEpoch}';
   }
 
   Future<void> _save() async {
@@ -106,9 +99,22 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
       final currentUserId =
           Supabase.instance.client.auth.currentUser?.id ?? '';
 
-      // Capture thumbnail first (non-blocking on failure)
-      final thumbnailUrl =
-          await _captureAndUploadThumbnail(currentUserId);
+      // 썸네일 캡처·업로드 (실패 시 SnackBar 후 중단)
+      final String thumbnailUrl;
+      try {
+        thumbnailUrl = await _captureAndUploadThumbnail(currentUserId);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('썸네일 업로드 실패: $e'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        setState(() => _isLoading = false);
+        return;
+      }
 
       await ref.read(saveDrawingUseCaseProvider).call(
         SaveDrawingParams(
@@ -123,8 +129,10 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
         ),
       );
 
-      // Invalidate the thumbnails provider so calendar refreshes
-      ref.invalidate(drawingThumbnailsForMonthProvider);
+      // 해당 월의 썸네일 provider를 명시적으로 무효화해 CalendarPage 즉시 갱신
+      final month = DateTime(_date.year, _date.month);
+      ref.invalidate(drawingThumbnailsForMonthProvider(month));
+      ref.invalidate(calendarDataProvider);
 
       if (mounted) context.pop();
     } on DrawingFailure catch (e) {

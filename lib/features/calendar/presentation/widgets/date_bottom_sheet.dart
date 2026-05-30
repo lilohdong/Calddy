@@ -31,117 +31,124 @@ class DateBottomSheet extends ConsumerWidget {
     final weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     final weekdayStr = weekdays[date.weekday % 7];
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      minChildSize: 0.35,
-      maxChildSize: 0.9,
-      builder: (_, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    // Stack: 뒤에 투명 GestureDetector → 앞에 DraggableScrollableSheet
+    // 블러 영역(시트 위 반투명 영역) 탭 시 닫히도록
+    return Stack(
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(context).pop(),
+          child: const SizedBox.expand(),
         ),
-        child: Column(
-          children: [
-            // 드래그 핸들
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
+        DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          minChildSize: 0.35,
+          maxChildSize: 0.9,
+          builder: (_, scrollCtrl) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
-            const SizedBox(height: 16),
-            // 날짜 헤더
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${date.month}월 ${date.day}일 ($weekdayStr)',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+            child: Column(
+              children: [
+                // 드래그 핸들
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      const Icon(Icons.wb_sunny_outlined,
-                          size: 14, color: Colors.orange),
-                      const SizedBox(width: 4),
-                      Text(
-                        '맑음',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Divider(height: 1),
-            // 이벤트 리스트
-            Expanded(
-              child: calendarAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (err, stack) => const SizedBox(),
-                data: (data) {
-                  final events = [
-                    ...data.events
-                        .where((e) => _isSameDay(e.startAt, date)),
-                    ...data.habits
-                        .where((e) => _isSameDay(e.startAt, date)),
-                  ];
-                  if (events.isEmpty) {
-                    return Center(
-                      child: Text(
-                        '등록된 일정이 없어요',
-                        style: TextStyle(
-                            color: Colors.grey.shade400, fontSize: 14),
-                      ),
-                    );
-                  }
-                  return ListView.separated(
-                    controller: scrollCtrl,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 8),
-                    itemCount: events.length,
-                    separatorBuilder: (context2, index2) =>
-                        const SizedBox(height: 8),
-                    itemBuilder: (_, i) => EventListTile(
-                      event: events[i],
-                      onTap: () {
-                        context.pop();
-                        context.push(
-                            AppRoutes.eventDetailPath(events[i].id));
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-            // + FAB
-            Padding(
-              padding: EdgeInsets.only(
-                  right: 20,
-                  bottom: MediaQuery.of(context).padding.bottom + 20),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: FloatingActionButton(
-                  backgroundColor: const Color(0xFF7C6AFA),
-                  onPressed: onAddPressed,
-                  child: const Icon(Icons.add, color: Colors.white),
                 ),
-              ),
+                const SizedBox(height: 16),
+                // 날짜 헤더 (날씨 제거)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '${date.month}월 ${date.day}일 ($weekdayStr)',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                // 이벤트 리스트
+                Expanded(
+                  child: calendarAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (err, stack) => const SizedBox(),
+                    data: (data) {
+                      final selectedDate = DateTime(
+                          date.year, date.month, date.day);
+                      final events = [
+                        ...data.events
+                            .where((e) => _isSameDay(e.startAt, date)),
+                        ...data.habits
+                            .where((e) => _isSameDay(e.startAt, date)),
+                        // 구간: 선택한 날짜가 구간 범위에 포함된 항목
+                        ...data.ranges.where((r) {
+                          final rs = DateTime(
+                              r.startAt.year, r.startAt.month, r.startAt.day);
+                          final re = DateTime(
+                              r.endAt.year, r.endAt.month, r.endAt.day);
+                          return !selectedDate.isBefore(rs) &&
+                              !selectedDate.isAfter(re);
+                        }),
+                      ];
+                      if (events.isEmpty) {
+                        return Center(
+                          child: Text(
+                            '등록된 일정이 없어요',
+                            style: TextStyle(
+                                color: Colors.grey.shade400, fontSize: 14),
+                          ),
+                        );
+                      }
+                      return ListView.separated(
+                        controller: scrollCtrl,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 8),
+                        itemCount: events.length,
+                        separatorBuilder: (context2, index2) =>
+                            const SizedBox(height: 8),
+                        itemBuilder: (_, i) => EventListTile(
+                          event: events[i],
+                          onTap: () {
+                            context.pop();
+                            context.push(
+                                AppRoutes.eventDetailPath(events[i].id));
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                // + FAB
+                Padding(
+                  padding: EdgeInsets.only(
+                      right: 20,
+                      bottom: MediaQuery.of(context).padding.bottom + 20),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FloatingActionButton(
+                      backgroundColor: const Color(0xFF7C6AFA),
+                      onPressed: onAddPressed,
+                      child: const Icon(Icons.add, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -245,22 +252,16 @@ class EventListTile extends ConsumerWidget {
                 child: const Text('일정 완료'),
               )
             else ...[
+              // 기록 완료 시 비활성화된 기록하기 버튼 표시
               if (_recordedEventIds.contains(event.id))
                 TextButton(
-                  onPressed: () async {
-                    context.pop();
-                    final result = await context.push<bool>(
-                      AppRoutes.recordPath(event.id),
-                      extra: true,
-                    );
-                    if (result == true) {
-                      _recordedEventIds.add(event.id);
-                    }
-                  },
+                  onPressed: null,
                   style: TextButton.styleFrom(
-                    foregroundColor: Colors.grey,
+                    foregroundColor: Colors.grey.shade400,
+                    disabledForegroundColor: Colors.grey.shade400,
                   ),
-                  child: const Text('수정', style: TextStyle(fontSize: 12)),
+                  child: const Text('기록하기',
+                      style: TextStyle(fontSize: 12)),
                 )
               else
                 TextButton(
