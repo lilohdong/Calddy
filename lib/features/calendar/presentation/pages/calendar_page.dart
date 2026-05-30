@@ -82,6 +82,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final calendarAsync = ref.watch(calendarDataProvider);
     final user = ref.watch(currentUserProvider);
     final selectedMonth = ref.watch(selectedMonthProvider);
+    final drawingThumbnails = ref.watch(
+      drawingThumbnailsForMonthProvider(selectedMonth),
+    ).maybeWhen(
+      data: (map) => map,
+      orElse: () => <String, String?>{},
+    );
     final hasUnread = ref.watch(notificationsProvider).maybeWhen(
       data: (list) => list.any((n) => !n.isRead),
       orElse: () => false,
@@ -186,6 +192,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             data: data,
             selectedDay: _selectedDay,
             onDaySelected: _onDaySelected,
+            drawingThumbnails: drawingThumbnails,
           ),
         ),
       ),

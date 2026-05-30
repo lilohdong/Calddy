@@ -38,4 +38,30 @@ class DrawingRemoteDataSourceImpl implements DrawingRemoteDataSource {
 
     return row == null ? null : DrawingModel.fromJson(row);
   }
+
+  @override
+  Future<Map<String, String?>> getDrawingThumbnailsForMonth(
+      int year, int month) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw const AuthException('session_expired');
+
+    final lastDay = DateTime(year, month + 1, 0).day;
+    final startStr =
+        '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-01';
+    final endStr =
+        '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${lastDay.toString().padLeft(2, '0')}';
+
+    final rows = await _client
+        .from(SupabaseConstants.drawings)
+        .select('draw_date, thumbnail_url')
+        .eq('user_id', userId)
+        .gte('draw_date', startStr)
+        .lte('draw_date', endStr);
+
+    return {
+      for (final row in rows as List<dynamic>)
+        (row as Map<String, dynamic>)['draw_date'] as String:
+            row['thumbnail_url'] as String?,
+    };
+  }
 }

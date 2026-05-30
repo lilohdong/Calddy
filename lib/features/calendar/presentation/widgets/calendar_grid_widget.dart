@@ -12,6 +12,7 @@ class CalendarGridWidget extends StatelessWidget {
     required this.data,
     required this.selectedDay,
     required this.onDaySelected,
+    this.drawingThumbnails = const {},
   });
 
   final int year;
@@ -19,6 +20,13 @@ class CalendarGridWidget extends StatelessWidget {
   final CalendarData data;
   final DateTime selectedDay;
   final ValueChanged<DateTime> onDaySelected;
+  final Map<String, String?> drawingThumbnails;
+
+  String? _thumbnailForDay(DateTime day) {
+    final key =
+        '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    return drawingThumbnails[key];
+  }
 
   static bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
@@ -191,6 +199,7 @@ class CalendarGridWidget extends StatelessWidget {
                                 isHoliday: _isHoliday(day),
                                 holidayName: _holidayName(day),
                                 onTap: () => onDaySelected(day),
+                                drawingThumbnailUrl: isCurrent ? _thumbnailForDay(day) : null,
                               ),
                             );
                           }).toList(),

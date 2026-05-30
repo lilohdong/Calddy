@@ -1,4 +1,7 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,6 +21,7 @@ class DrawingPage extends ConsumerStatefulWidget {
 }
 
 class _DrawingPageState extends ConsumerState<DrawingPage> {
+  final _canvasKey = GlobalKey();
   final List<DrawingStroke> _strokes = [];
   List<List<double>> _currentPoints = [];
   Color _bgColor = const Color(0xFFE8E0FF);
@@ -54,22 +58,74 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
     _date = DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
   }
 
+  Future<String?> _captureAndUploadThumbnail(String userId) async {
+    try {
+      final context = _canvasKey.currentContext;
+      if (context == null) return null;
+
+      final boundary =
+          context.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+
+      // Capture at 1.5x pixel ratio for reasonable quality
+      final image = await boundary.toImage(pixelRatio: 1.5);
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return null;
+
+      final bytes = byteData.buffer.asUint8List();
+      final fileName =
+          'drawing_${userId}_${widget.date}.png';
+
+      // Upload (upsert) to Supabase Storage
+      await Supabase.instance.client.storage
+          .from('drawings')
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(
+              contentType: 'image/png',
+              upsert: true,
+            ),
+          );
+
+      // Return public URL
+      return Supabase.instance.client.storage
+          .from('drawings')
+          .getPublicUrl(fileName);
+    } catch (e) {
+      // Thumbnail failure is non-blocking — continue without URL
+      return null;
+    }
+  }
+
   Future<void> _save() async {
     setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id ?? '';
+      final currentUserId =
+          Supabase.instance.client.auth.currentUser?.id ?? '';
+
+      // Capture thumbnail first (non-blocking on failure)
+      final thumbnailUrl =
+          await _captureAndUploadThumbnail(currentUserId);
+
       await ref.read(saveDrawingUseCaseProvider).call(
-            SaveDrawingParams(
-              drawing: DrawingEntity(
-                id: '',
-                userId: currentUserId,
-                drawDate: _date,
-                strokes: _strokes,
-                updatedAt: now,
-              ),
-            ),
-          );
+        SaveDrawingParams(
+          drawing: DrawingEntity(
+            id: '',
+            userId: currentUserId,
+            drawDate: _date,
+            strokes: _strokes,
+            thumbnailUrl: thumbnailUrl,
+            updatedAt: now,
+          ),
+        ),
+      );
+
+      // Invalidate the thumbnails provider so calendar refreshes
+      ref.invalidate(drawingThumbnailsForMonthProvider);
+
       if (mounted) context.pop();
     } on DrawingFailure catch (e) {
       if (mounted) {
@@ -161,9 +217,11 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
                       }
                     }
                   : null,
-              child: Container(
-                color: _bgColor,
-                child: Stack(
+              child: RepaintBoundary(
+                key: _canvasKey,
+                child: Container(
+                  color: _bgColor,
+                  child: Stack(
                   children: [
                     // 날짜 표시
                     Positioned(
@@ -234,6 +292,7 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
                       child: const SizedBox.expand(),
                     ),
                   ],
+                ),
                 ),
               ),
             ),

@@ -13,6 +13,7 @@ class CalendarDayCell extends StatelessWidget {
     required this.onTap,
     this.isHoliday = false,
     this.holidayName,
+    this.drawingThumbnailUrl,
   });
 
   final DateTime date;
@@ -23,6 +24,7 @@ class CalendarDayCell extends StatelessWidget {
   final VoidCallback onTap;
   final bool isHoliday;
   final String? holidayName;
+  final String? drawingThumbnailUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +50,13 @@ class CalendarDayCell extends StatelessWidget {
           color: isSelected
               ? const Color(0xFF7C6AFA).withValues(alpha: 0.08)
               : Colors.white,
+          image: drawingThumbnailUrl != null
+              ? DecorationImage(
+                  image: NetworkImage(drawingThumbnailUrl!),
+                  fit: BoxFit.cover,
+                  opacity: 0.85,
+                )
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
