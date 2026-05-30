@@ -247,9 +247,15 @@ class EventListTile extends ConsumerWidget {
             else ...[
               if (_recordedEventIds.contains(event.id))
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     context.pop();
-                    context.push(AppRoutes.recordPath(event.id));
+                    final result = await context.push<bool>(
+                      AppRoutes.recordPath(event.id),
+                      extra: true,
+                    );
+                    if (result == true) {
+                      _recordedEventIds.add(event.id);
+                    }
                   },
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.grey,

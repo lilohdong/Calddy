@@ -176,6 +176,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'event/:eventId/record',
                 builder: (_, s) => RecordPage(
                   eventId: s.pathParameters['eventId']!,
+                  isEditing: s.extra == true,
                 ),
               ),
               GoRoute(

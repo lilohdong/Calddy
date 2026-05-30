@@ -10,8 +10,9 @@ import '../../../feed/domain/usecases/create_post_usecase.dart';
 import '../../../feed/presentation/providers/feed_providers.dart';
 
 class RecordPage extends ConsumerStatefulWidget {
-  const RecordPage({super.key, required this.eventId});
+  const RecordPage({super.key, required this.eventId, this.isEditing = false});
   final String eventId;
+  final bool isEditing;
 
   @override
   ConsumerState<RecordPage> createState() => _RecordPageState();
@@ -99,9 +100,9 @@ class _RecordPageState extends ConsumerState<RecordPage> {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          '기록하기',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+        title: Text(
+          widget.isEditing ? '기록 수정하기' : '기록하기',
+          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
         actions: [
@@ -112,9 +113,9 @@ class _RecordPageState extends ConsumerState<RecordPage> {
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text(
-                    '완료',
-                    style: TextStyle(
+                : Text(
+                    widget.isEditing ? '수정' : '완료',
+                    style: const TextStyle(
                         color: Color(0xFF7C6AFA), fontWeight: FontWeight.w600),
                   ),
           ),
