@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
-import '../../../../core/router/app_routes.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../notification/domain/entities/notification_entity.dart';
 import '../../../notification/presentation/providers/notification_providers.dart';
 import '../providers/calendar_providers.dart';
 import '../widgets/calendar_grid_widget.dart';
@@ -59,6 +59,27 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   String _headerTitle() {
     final m = ref.watch(selectedMonthProvider);
     return '${m.year}년 ${m.month}월';
+  }
+
+  void _showBell() {
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.15),
+      transitionDuration: const Duration(milliseconds: 180),
+      transitionBuilder: (_, anim, __, child) => FadeTransition(
+        opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -0.04),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+          child: child,
+        ),
+      ),
+      pageBuilder: (ctx, _, __) => const _NotificationPopover(),
+    );
   }
 
   void _showYearMonthPicker() {
@@ -149,7 +170,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               IconButton(
                 icon: const Icon(Icons.notifications_outlined,
                     color: Colors.black87),
-                onPressed: () => context.push(AppRoutes.notifications),
+                onPressed: _showBell,
               ),
               if (hasUnread)
                 Positioned(
@@ -334,5 +355,190 @@ class _YearMonthPickerDialogState extends State<_YearMonthPickerDialog> {
         ),
       ),
     );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 알림 팝오버 (말풍선 꼬리)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const _kPurple = Color(0xFF7C6AFA);
+
+class _NotificationPopover extends ConsumerWidget {
+  const _NotificationPopover();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifAsync = ref.watch(notificationsProvider);
+    final mq = MediaQuery.of(context);
+    final topOffset = mq.padding.top + 56 + 6.0;
+
+    return Padding(
+      padding: EdgeInsets.only(top: topOffset, right: 8),
+      child: Align(
+        alignment: Alignment.topRight,
+        child: Material(
+          color: Colors.transparent,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 꼬리 삼각형 — 벨 아이콘 아래에 오도록 우측 정렬
+              const Padding(
+                padding: EdgeInsets.only(right: 18),
+                child: CustomPaint(
+                  painter: _PopoverTailPainter(),
+                  size: Size(16, 9),
+                ),
+              ),
+              // 패널
+              Container(
+                width: mq.size.width * 0.72,
+                constraints: const BoxConstraints(maxHeight: 400),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
+                      child: Text(
+                        '알림',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Flexible(
+                      child: notifAsync.when(
+                        loading: () => const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(
+                              child: CircularProgressIndicator(color: _kPurple)),
+                        ),
+                        error: (_, __) => const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: Text('알림을 불러올 수 없어요')),
+                        ),
+                        data: (notifs) {
+                          if (notifs.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 28),
+                              child: Center(
+                                child: Text('새로운 알림이 없어요',
+                                    style: TextStyle(color: Colors.grey)),
+                              ),
+                            );
+                          }
+                          return ListView.separated(
+                            shrinkWrap: true,
+                            physics: const ClampingScrollPhysics(),
+                            itemCount: notifs.length,
+                            separatorBuilder: (_, __) => const Divider(
+                                height: 1, indent: 16, endIndent: 16),
+                            itemBuilder: (_, i) => _NotifTile(notif: notifs[i]),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PopoverTailPainter extends CustomPainter {
+  const _PopoverTailPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
+}
+
+class _NotifTile extends StatelessWidget {
+  const _NotifTile({required this.notif});
+
+  final NotificationEntity notif;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: notif.isRead
+              ? Colors.grey.shade100
+              : const Color(0xFFEDE9FF),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          _notifIcon(notif.type),
+          color: notif.isRead ? Colors.grey : _kPurple,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        notif.title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: notif.isRead ? FontWeight.normal : FontWeight.w600,
+          color: const Color(0xFF1A1A2E),
+        ),
+      ),
+      subtitle: Text(
+        notif.body,
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  IconData _notifIcon(NotificationType type) {
+    switch (type) {
+      case NotificationType.friendRequest:
+        return Icons.person_add_outlined;
+      case NotificationType.appointmentInvite:
+        return Icons.event_outlined;
+      case NotificationType.appointmentAccepted:
+        return Icons.check_circle_outline;
+      case NotificationType.appointmentRejected:
+        return Icons.cancel_outlined;
+      case NotificationType.suggestNewDate:
+        return Icons.update_outlined;
+      case NotificationType.postLiked:
+        return Icons.favorite_border_rounded;
+      case NotificationType.postCommented:
+        return Icons.chat_bubble_outline_rounded;
+    }
   }
 }

@@ -158,18 +158,13 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               ...[
-                (_AlarmMode.none, '없음', null as IconData?),
-                (_AlarmMode.sameDay9am, '당일 오전 9시',
-                    Icons.wb_sunny_outlined as IconData?),
-                (_AlarmMode.thirtyMin, '30분 전', null as IconData?),
-                (_AlarmMode.oneHour, '1시간 전', null as IconData?),
-                (_AlarmMode.oneDay, '하루 전', null as IconData?),
+                (_AlarmMode.none, '없음'),
+                (_AlarmMode.sameDay9am, '당일 오전 9시'),
+                (_AlarmMode.thirtyMin, '30분 전'),
+                (_AlarmMode.oneHour, '1시간 전'),
+                (_AlarmMode.oneDay, '하루 전'),
               ].map((opt) => ListTile(
                     title: Text(opt.$2),
-                    leading: opt.$3 != null
-                        ? Icon(opt.$3,
-                            color: const Color(0xFF7C6AFA), size: 20)
-                        : null,
                     trailing: _alarmMode == opt.$1
                         ? const Icon(Icons.check, color: Color(0xFF7C6AFA))
                         : null,
@@ -180,8 +175,6 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                   )),
               ListTile(
                 title: const Text('사용자화'),
-                leading: const Icon(Icons.tune,
-                    color: Color(0xFF7C6AFA), size: 20),
                 trailing: _alarmMode == _AlarmMode.custom
                     ? Row(
                         mainAxisSize: MainAxisSize.min,

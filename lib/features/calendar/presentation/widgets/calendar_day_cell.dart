@@ -92,15 +92,13 @@ class CalendarDayCell extends StatelessWidget {
             ),
             // 이벤트 블록 (최대 2개, 하단 구간 바 공간 확보)
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: events
-                      .take(2)
-                      .map((e) => EventBlockWidget(event: e))
-                      .toList(),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  ...events.take(2).map((e) => EventBlockWidget(event: e)),
+                  const Spacer(), // pushes events to top, leaves bottom for range bars
+                ],
               ),
             ),
           ],

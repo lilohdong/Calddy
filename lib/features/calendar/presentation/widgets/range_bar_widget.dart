@@ -17,11 +17,12 @@ class RangeBarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = ColorPickerRow.fromHex(event.color);
+    final textColor = color.computeLuminance() > 0.35 ? Colors.black87 : Colors.white;
     return Container(
       height: 16,
       margin: const EdgeInsets.symmetric(vertical: 1),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.25),
+        color: color.withValues(alpha: 0.9),
         borderRadius: BorderRadius.horizontal(
           left: isStart ? const Radius.circular(8) : Radius.zero,
           right: isEnd ? const Radius.circular(8) : Radius.zero,
@@ -34,7 +35,7 @@ class RangeBarWidget extends StatelessWidget {
               event.title,
               style: TextStyle(
                 fontSize: 9,
-                color: color,
+                color: textColor,
                 fontWeight: FontWeight.w600,
               ),
               maxLines: 1,

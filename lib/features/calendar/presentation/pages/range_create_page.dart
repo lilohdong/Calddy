@@ -150,18 +150,13 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               ...[
-                (_RangeAlarmMode.none, '없음', null as IconData?),
-                (_RangeAlarmMode.sameDay9am, '당일 오전 9시',
-                    Icons.wb_sunny_outlined as IconData?),
-                (_RangeAlarmMode.thirtyMin, '30분 전', null as IconData?),
-                (_RangeAlarmMode.oneHour, '1시간 전', null as IconData?),
-                (_RangeAlarmMode.oneDay, '하루 전', null as IconData?),
+                (_RangeAlarmMode.none, '없음'),
+                (_RangeAlarmMode.sameDay9am, '당일 오전 9시'),
+                (_RangeAlarmMode.thirtyMin, '30분 전'),
+                (_RangeAlarmMode.oneHour, '1시간 전'),
+                (_RangeAlarmMode.oneDay, '하루 전'),
               ].map((opt) => ListTile(
                     title: Text(opt.$2),
-                    leading: opt.$3 != null
-                        ? Icon(opt.$3,
-                            color: const Color(0xFF7C6AFA), size: 20)
-                        : null,
                     trailing: _alarmMode == opt.$1
                         ? const Icon(Icons.check, color: Color(0xFF7C6AFA))
                         : null,
@@ -172,8 +167,6 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                   )),
               ListTile(
                 title: const Text('사용자화'),
-                leading: const Icon(Icons.tune,
-                    color: Color(0xFF7C6AFA), size: 20),
                 trailing: _alarmMode == _RangeAlarmMode.custom
                     ? Row(
                         mainAxisSize: MainAxisSize.min,

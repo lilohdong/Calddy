@@ -6,43 +6,32 @@ class EventBlockWidget extends StatelessWidget {
   const EventBlockWidget({super.key, required this.event});
   final EventEntity event;
 
+  // Returns black or white depending on background luminance
+  static Color _contrastColor(Color bg) {
+    return bg.computeLuminance() > 0.35 ? Colors.black87 : Colors.white;
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = ColorPickerRow.fromHex(event.color);
-    final timeStr =
-        '${event.startAt.hour.toString().padLeft(2, '0')}:${event.startAt.minute.toString().padLeft(2, '0')}';
+    final textColor = _contrastColor(color);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.85),
+        color: color.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(3),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            timeStr,
-            style: const TextStyle(
-              fontSize: 8,
-              color: Colors.white,
-              height: 1.1,
-            ),
-            maxLines: 1,
-          ),
-          Text(
-            event.title,
-            style: const TextStyle(
-              fontSize: 9,
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-              height: 1.1,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+      child: Text(
+        event.title,
+        style: TextStyle(
+          fontSize: 9,
+          color: textColor,
+          fontWeight: FontWeight.w600,
+          height: 1.2,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

@@ -281,15 +281,17 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
                                 style: const TextStyle(fontSize: 36)),
                           ),
                         )),
-                    // 손글씨 캔버스
-                    CustomPaint(
-                      painter: _CanvasPainter(
-                        strokes: _strokes,
-                        currentPoints: _currentPoints,
-                        currentColor: _strokeColor,
-                        currentWidth: _strokeWidth,
+                    // 손글씨 캔버스 (IgnorePointer로 감싸 스티커 드래그 가능)
+                    IgnorePointer(
+                      child: CustomPaint(
+                        painter: _CanvasPainter(
+                          strokes: _strokes,
+                          currentPoints: _currentPoints,
+                          currentColor: _strokeColor,
+                          currentWidth: _strokeWidth,
+                        ),
+                        child: const SizedBox.expand(),
                       ),
-                      child: const SizedBox.expand(),
                     ),
                   ],
                 ),
