@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/widgets/calddy_logo.dart';
 import '../../domain/entities/friend_entity.dart';
 import '../../domain/usecases/accept_friend_request_use_case.dart';
 import '../../domain/usecases/delete_friend_use_case.dart';
@@ -180,7 +181,6 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                                   : f.friendId;
                         }),
                         onDelete: () => _deleteFriend(f.friendId),
-                        onMerge: () => context.push(AppRoutes.mergeCalendar),
                       );
                     },
                     childCount: friends.length,
@@ -200,7 +200,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                 onPressed: () => context.push(AppRoutes.mergeCalendar),
                 backgroundColor: const Color(0xFF7C6AFA),
                 elevation: 3,
-                icon: const Icon(Icons.merge_outlined, color: Colors.white),
+                icon: const CaldyLogo(size: 22),
                 label: const Text(
                   '나와 합쳐보기',
                   style: TextStyle(

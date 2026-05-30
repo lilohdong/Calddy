@@ -7,7 +7,6 @@ import '../../domain/entities/free_slot_entity.dart';
 import '../../domain/entities/friend_calendar_event_entity.dart';
 import '../../domain/entities/friend_entity.dart';
 import '../providers/friend_providers.dart';
-import '../widgets/friend_avatar_chip.dart';
 
 class MergeCalendarPage extends ConsumerStatefulWidget {
   const MergeCalendarPage({super.key});
@@ -17,8 +16,8 @@ class MergeCalendarPage extends ConsumerStatefulWidget {
 }
 
 class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
+  // 5번: 초기값 아무도 선택 안 된 상태
   final Set<String> _selectedIds = {};
-  bool _initialised = false;
   DateTime _current = DateTime(DateTime.now().year, DateTime.now().month);
   int? _recommendedDay;
 
@@ -43,10 +42,14 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon:
-              const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black87),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            size: 18,
+            color: Colors.black87,
+          ),
           onPressed: () => context.pop(),
         ),
+        // 7번: 오른쪽 완료 버튼 제거
         title: const Text(
           '친구와 일정 합치기',
           style: TextStyle(
@@ -56,36 +59,12 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          TextButton(
-            onPressed: () => context.go(AppRoutes.friends),
-            child: const Text(
-              '완료',
-              style: TextStyle(
-                color: Color(0xFF7C6AFA),
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ],
       ),
       body: friendsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) =>
             Center(child: Text(e is FriendFailure ? e.message : '불러오기 실패')),
         data: (friends) {
-          // 첫 진입 시 전체 친구 선택
-          if (!_initialised && friends.isNotEmpty) {
-            _initialised = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              setState(
-                () => _selectedIds.addAll(friends.map((f) => f.friendId)),
-              );
-            });
-          }
-
           final indexedFriends = friends.asMap().entries.toList();
           final selectedIndexed = indexedFriends
               .where((e) => _selectedIds.contains(e.value.friendId))
@@ -121,9 +100,11 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
             }
           });
 
+          final selectedCount = _selectedIds.length;
+
           return Column(
             children: [
-              // 상단: 친구 선택 + 범례
+              // 6번: 상단 흰 영역 고정 높이
               Container(
                 color: Colors.white,
                 child: Column(
@@ -132,22 +113,30 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                       child: Text(
-                        '${_selectedIds.length}명을 선택했어요',
-                        style: const TextStyle(
+                        selectedCount == 0
+                            ? '친구를 선택해주세요'
+                            : '$selectedCount명을 선택했어요',
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: selectedCount == 0
+                              ? Colors.grey.shade400
+                              : Colors.black87,
                         ),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // 친구 선택 스크롤
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: friends.map((f) {
+                    // 친구 선택 스크롤 (고정 높이)
+                    SizedBox(
+                      height: 88,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: friends.length,
+                        itemBuilder: (_, idx) {
+                          final f = friends[idx];
                           final isSelected = _selectedIds.contains(f.friendId);
+                          final nickname = f.friendProfile.nickname ?? '?';
                           return Padding(
                             padding: const EdgeInsets.only(right: 16),
                             child: GestureDetector(
@@ -159,54 +148,106 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                                 }
                                 _recommendedDay = null;
                               }),
-                              child: Opacity(
-                                opacity: isSelected ? 1.0 : 0.4,
-                                child: FriendAvatarChip(
-                                  friend: f,
-                                  isSelected: isSelected,
-                                  showOverlapBadge: false,
-                                ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // 4번: 아바타 배경색 제거 — 선택 여부만 표시
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    width: 52,
+                                    height: 52,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: isSelected
+                                          ? const Color(0xFFEDE9FF)
+                                          : Colors.grey.shade100,
+                                      border: isSelected
+                                          ? Border.all(
+                                              color: const Color(0xFF7C6AFA),
+                                              width: 2.5,
+                                            )
+                                          : Border.all(
+                                              color: Colors.grey.shade300,
+                                              width: 1,
+                                            ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        nickname.isNotEmpty
+                                            ? nickname[0].toUpperCase()
+                                            : '?',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w600,
+                                          color: isSelected
+                                              ? const Color(0xFF7C6AFA)
+                                              : Colors.grey.shade500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    nickname.length > 5
+                                        ? '${nickname.substring(0, 5)}…'
+                                        : nickname,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isSelected
+                                          ? const Color(0xFF7C6AFA)
+                                          : Colors.grey.shade500,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           );
-                        }).toList(),
+                        },
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    // 범례
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                      child: Wrap(
-                        spacing: 16,
-                        runSpacing: 6,
-                        children: [
-                          _LegendDot(
-                            color: const Color(0xFF7C6AFA),
-                            label: '내 일정',
-                          ),
-                          ...selectedIndexed.map((e) => _LegendDot(
-                                color: _friendColor(e.key),
-                                label:
-                                    e.value.friendProfile.nickname ?? '',
-                              )),
-                          _LegendDot(
-                            color: const Color(0xFF8CC98A),
-                            label: '모두 비어있음',
-                            isOutlined: true,
-                          ),
-                        ],
+                    const SizedBox(height: 12),
+                    // 범례 (고정 높이)
+                    SizedBox(
+                      height: 36,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            _LegendDot(
+                              color: const Color(0xFF7C6AFA),
+                              label: '내 일정',
+                            ),
+                            ...selectedIndexed.map((e) => Padding(
+                                  padding: const EdgeInsets.only(left: 16),
+                                  child: _LegendDot(
+                                    color: _friendColor(e.key),
+                                    label: e.value.friendProfile.nickname ?? '',
+                                  ),
+                                )),
+                            const SizedBox(width: 16),
+                            _LegendDot(
+                              color: const Color(0xFF8CC98A),
+                              label: '모두 비어있음',
+                              isOutlined: true,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
 
-              // 달력 + 하단 버튼
+              // 달력
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      // 달력 카드
                       Container(
                         margin: const EdgeInsets.all(16),
                         padding: const EdgeInsets.all(16),
@@ -233,7 +274,8 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                               .map((e) => (
                                     friend: e.value,
                                     color: _friendColor(e.key),
-                                    events: friendEvents[e.value.friendId] ?? [],
+                                    events:
+                                        friendEvents[e.value.friendId] ?? [],
                                   ))
                               .toList(),
                           onSelectDay: (d) =>
@@ -318,7 +360,6 @@ class _MergeCalendarGrid extends StatelessWidget {
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     final now = DateTime.now();
 
-    // 이벤트 맵: day → list of (color, title)
     final Map<int, List<({Color color, String title})>> eventMap = {};
     for (final fw in selectedFriends) {
       for (final e in fw.events) {
@@ -333,47 +374,50 @@ class _MergeCalendarGrid extends StatelessWidget {
 
     return Column(
       children: [
-        // 월 헤더
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             GestureDetector(
               onTap: () =>
                   onMonthChanged(DateTime(current.year, current.month - 1)),
-              child: const Icon(Icons.chevron_left, size: 24, color: Colors.grey),
+              child:
+                  const Icon(Icons.chevron_left, size: 24, color: Colors.grey),
             ),
             Text(
               '${current.year}년 ${current.month}월 ▾',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
             GestureDetector(
               onTap: () =>
                   onMonthChanged(DateTime(current.year, current.month + 1)),
-              child:
-                  const Icon(Icons.chevron_right, size: 24, color: Colors.grey),
+              child: const Icon(Icons.chevron_right,
+                  size: 24, color: Colors.grey),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        // 요일 헤더
         Row(
-          children: weekdays.asMap().entries.map((e) => Expanded(
-            child: Center(
-              child: Text(
-                e.value,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: e.key == 0
-                      ? Colors.red.shade300
-                      : Colors.grey.shade500,
-                ),
-              ),
-            ),
-          )).toList(),
+          children: weekdays
+              .asMap()
+              .entries
+              .map((e) => Expanded(
+                    child: Center(
+                      child: Text(
+                        e.value,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: e.key == 0
+                              ? Colors.red.shade300
+                              : Colors.grey.shade500,
+                        ),
+                      ),
+                    ),
+                  ))
+              .toList(),
         ),
         const SizedBox(height: 6),
-        // 날짜 그리드
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -442,29 +486,35 @@ class _MergeCalendarGrid extends StatelessWidget {
                         if (dayEvents.isNotEmpty)
                           Expanded(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 2),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 2),
                               child: Column(
-                                children: dayEvents.take(2).map((e) => Container(
-                                  margin: const EdgeInsets.only(top: 1),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 2,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: e.color.withOpacity(0.22),
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                  child: Text(
-                                    e.title,
-                                    style: TextStyle(
-                                      fontSize: 8,
-                                      color: e.color,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                )).toList(),
+                                children: dayEvents
+                                    .take(2)
+                                    .map((e) => Container(
+                                          margin:
+                                              const EdgeInsets.only(top: 1),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 2,
+                                            vertical: 1,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: e.color.withOpacity(0.22),
+                                            borderRadius:
+                                                BorderRadius.circular(3),
+                                          ),
+                                          child: Text(
+                                            e.title,
+                                            style: TextStyle(
+                                              fontSize: 8,
+                                              color: e.color,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ))
+                                    .toList(),
                               ),
                             ),
                           )
@@ -473,7 +523,6 @@ class _MergeCalendarGrid extends StatelessWidget {
                       ],
                     ),
                   ),
-                  // 추천 날짜 툴팁
                   if (isRecommended)
                     Positioned(
                       bottom: -38,
@@ -496,13 +545,13 @@ class _MergeCalendarGrid extends StatelessWidget {
                               ),
                             ],
                           ),
-                          child: Row(
+                          child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.add, size: 12,
-                                  color: Color(0xFF7C6AFA)),
-                              const SizedBox(width: 4),
-                              const Text(
+                              Icon(Icons.add,
+                                  size: 12, color: Color(0xFF7C6AFA)),
+                              SizedBox(width: 4),
+                              Text(
                                 '이 날짜는 어떠세요?',
                                 style: TextStyle(
                                   fontSize: 10,
@@ -547,8 +596,7 @@ class _LegendDot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: isOutlined ? const Color(0xFFDCF0DA) : color,
-            border:
-                isOutlined ? Border.all(color: color, width: 1.5) : null,
+            border: isOutlined ? Border.all(color: color, width: 1.5) : null,
           ),
         ),
         const SizedBox(width: 5),

@@ -12,14 +12,12 @@ class FriendCard extends ConsumerWidget {
     required this.isExpanded,
     required this.onToggle,
     required this.onDelete,
-    required this.onMerge,
   });
 
   final FriendEntity friend;
   final bool isExpanded;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
-  final VoidCallback onMerge;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,7 +44,7 @@ class FriendCard extends ConsumerWidget {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
               child: Row(
                 children: [
                   // Avatar
@@ -84,27 +82,23 @@ class FriendCard extends ConsumerWidget {
                         const SizedBox(height: 2),
                         Text(
                           isExpanded ? '나와 가장 많이 겹쳐요!' : '나와 많이 겹쳐요',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  // Action buttons
-                  if (isExpanded)
-                    _DeleteChip(onDelete: onDelete)
-                  else
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _MergeChip(onMerge: onMerge),
-                        const SizedBox(width: 4),
-                        _MoreMenu(onDelete: onDelete),
-                      ],
-                    ),
+                  // 항상 ... 메뉴만 표시
+                  _MoreMenu(
+                    nickname: nickname,
+                    onDelete: onDelete,
+                  ),
                 ],
               ),
             ),
-            // Expanded calendar
+            // 펼쳐진 캘린더
             if (isExpanded)
               _ExpandedCalendar(friendId: friend.friendId),
           ],
@@ -114,78 +108,108 @@ class FriendCard extends ConsumerWidget {
   }
 }
 
-class _DeleteChip extends StatelessWidget {
-  const _DeleteChip({required this.onDelete});
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onDelete,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFE4EF),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Text(
-          '삭제',
-          style: TextStyle(
-            color: Color(0xFFE91E8C),
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MergeChip extends StatelessWidget {
-  const _MergeChip({required this.onMerge});
-  final VoidCallback onMerge;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onMerge,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEDE9FF),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Text(
-          '나와 합쳐 보기',
-          style: TextStyle(
-            color: Color(0xFF7C6AFA),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _MoreMenu extends StatelessWidget {
-  const _MoreMenu({required this.onDelete});
+  const _MoreMenu({required this.nickname, required this.onDelete});
+  final String nickname;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
+    return IconButton(
       icon: const Icon(Icons.more_horiz, color: Colors.grey, size: 22),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      onSelected: (v) {
-        if (v == 'delete') onDelete();
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem(
-          value: 'delete',
-          child: Text('친구 삭제', style: TextStyle(color: Colors.red)),
+      onPressed: () => _showDeleteSheet(context),
+    );
+  }
+
+  void _showDeleteSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
         ),
-      ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                '$nickname 님을 친구 목록에서\n삭제하시겠어요?',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        '취소',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        onDelete();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF4D6A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        '삭제',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -208,7 +232,10 @@ class _ExpandedCalendar extends ConsumerWidget {
         error: (_, _) => const SizedBox(
           height: 60,
           child: Center(
-            child: Text('일정을 불러오지 못했어요', style: TextStyle(color: Colors.grey)),
+            child: Text(
+              '일정을 불러오지 못했어요',
+              style: TextStyle(color: Colors.grey),
+            ),
           ),
         ),
         data: (events) => FriendMiniCalendar(events: events),
