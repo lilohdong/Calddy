@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -83,19 +85,25 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                 );
           }
 
-          // 빈 날짜 계산
+          // 빈 날짜 계산 — 슬롯 범위 내 모든 날짜를 추가
           final freeDays = <int>{};
           slotsAsync.whenData((slots) {
             for (final s in slots) {
-              if (s.startAt.year == _current.year &&
-                  s.startAt.month == _current.month) {
-                freeDays.add(s.startAt.day);
+              var d = DateTime(s.startAt.year, s.startAt.month, s.startAt.day);
+              final endDay = DateTime(s.endAt.year, s.endAt.month, s.endAt.day);
+              while (!d.isAfter(endDay)) {
+                if (d.year == _current.year && d.month == _current.month) {
+                  freeDays.add(d.day);
+                }
+                d = d.add(const Duration(days: 1));
               }
             }
+            // 추천 날짜: 빈 날짜 중 랜덤 1개 (미설정 시에만)
             if (freeDays.isNotEmpty && _recommendedDay == null) {
-              final sorted = freeDays.toList()..sort();
+              final list = freeDays.toList();
+              final pick = list[Random().nextInt(list.length)];
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) setState(() => _recommendedDay = sorted.first);
+                if (mounted) setState(() => _recommendedDay = pick);
               });
             }
           });
