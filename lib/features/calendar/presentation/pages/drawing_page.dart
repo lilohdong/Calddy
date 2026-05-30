@@ -99,21 +99,20 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
       final currentUserId =
           Supabase.instance.client.auth.currentUser?.id ?? '';
 
-      // 썸네일 캡처·업로드 (실패 시 SnackBar 후 중단)
-      final String thumbnailUrl;
+      // 썸네일 캡처·업로드 — 실패해도 드로잉 저장은 항상 진행
+      String? thumbnailUrl;
       try {
         thumbnailUrl = await _captureAndUploadThumbnail(currentUserId);
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('썸네일 업로드 실패: $e'),
+              content: Text('썸네일 업로드 실패 (드로잉은 저장됩니다): $e'),
               backgroundColor: Colors.orange,
             ),
           );
         }
-        setState(() => _isLoading = false);
-        return;
+        // thumbnailUrl = null 로 저장 계속 진행
       }
 
       await ref.read(saveDrawingUseCaseProvider).call(

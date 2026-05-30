@@ -222,8 +222,7 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
               itemCount: _palette.length,
               itemBuilder: (_, i) {
                 final hex = _palette[i];
-                final c = Color(int.parse(
-                    hex.replaceFirst('#', '0xFF')));
+                final c = ColorPickerRow.fromHex(hex);
                 return GestureDetector(
                   onTap: () {
                     setState(() {

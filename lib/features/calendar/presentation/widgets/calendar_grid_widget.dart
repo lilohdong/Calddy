@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../calendar/domain/entities/calendar_data.dart';
 import '../../../calendar/domain/entities/event_entity.dart';
+import '../../../calendar/domain/entities/holiday_entity.dart';
+import '../../../../core/utils/extensions.dart';
 import 'calendar_day_cell.dart';
 import 'range_bar_widget.dart';
 
@@ -22,14 +24,8 @@ class CalendarGridWidget extends StatelessWidget {
   final ValueChanged<DateTime> onDaySelected;
   final Map<String, String?> drawingThumbnails;
 
-  String? _thumbnailForDay(DateTime day) {
-    final key =
-        '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    return drawingThumbnails[key];
-  }
-
-  static bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
+  String? _thumbnailForDay(DateTime day) =>
+      drawingThumbnails[day.toDateString()]; // extensions.dart
 
   List<DateTime> _buildMonthDates() {
     final firstDay = DateTime(year, month, 1);
@@ -48,28 +44,6 @@ class CalendarGridWidget extends StatelessWidget {
     return dates;
   }
 
-  List<EventEntity> _eventsForDay(DateTime day) {
-    return [
-      ...data.events.where((e) =>
-          _isSameDay(e.startAt, day) &&
-          _isSameDay(e.startAt, e.endAt)), // single-day only
-      ...data.habits.where((e) => _isSameDay(e.startAt, day)),
-    ];
-  }
-
-  List<EventEntity> get _multiDayEvents => data.events
-      .where((e) => !_isSameDay(e.startAt, e.endAt))
-      .toList();
-
-  bool _isHoliday(DateTime day) =>
-      data.holidays.any((h) => _isSameDay(h.date, day));
-
-  String? _holidayName(DateTime day) =>
-      data.holidays
-          .where((h) => _isSameDay(h.date, day))
-          .map((h) => h.name)
-          .firstOrNull;
-
   List<Widget> _buildRangeBarsForWeek(
     List<DateTime> weekDays,
     List<EventEntity> ranges,
@@ -78,7 +52,6 @@ class CalendarGridWidget extends StatelessWidget {
   ) {
     final bars = <Widget>[];
 
-    // Collect which ranges overlap this week
     final overlapping = <EventEntity>[];
     for (final range in ranges) {
       final rangeStart = DateTime(
@@ -92,7 +65,6 @@ class CalendarGridWidget extends StatelessWidget {
       }
     }
 
-    // Place from bottom up (idx=0 at bottom, higher idx stacks upward)
     for (int idx = 0; idx < overlapping.length; idx++) {
       final range = overlapping[idx];
       final rangeStart = DateTime(
@@ -106,16 +78,17 @@ class CalendarGridWidget extends StatelessWidget {
           rangeStart.isBefore(weekStart) ? weekStart : rangeStart;
       final displayEnd = rangeEnd.isAfter(weekEnd) ? weekEnd : rangeEnd;
 
-      final startCol = weekDays.indexWhere((d) => _isSameDay(d, displayStart));
-      final endCol = weekDays.indexWhere((d) => _isSameDay(d, displayEnd));
+      final startCol =
+          weekDays.indexWhere((d) => d.isSameDay(displayStart));
+      final endCol =
+          weekDays.indexWhere((d) => d.isSameDay(displayEnd));
       if (startCol == -1 || endCol == -1) continue;
 
       final left = startCol * cellWidth;
       final width = (endCol - startCol + 1) * cellWidth;
-      final isStart = _isSameDay(displayStart, rangeStart);
-      final isEnd = _isSameDay(displayEnd, rangeEnd);
+      final isStart = displayStart.isSameDay(rangeStart);
+      final isEnd = displayEnd.isSameDay(rangeEnd);
 
-      // Bottom position: first range at bottom, subsequent ones stack upward
       final bottom = 2.0 + idx * 20.0;
 
       bars.add(
@@ -139,6 +112,29 @@ class CalendarGridWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final dates = _buildMonthDates();
     final weeks = List.generate(6, (i) => dates.sublist(i * 7, i * 7 + 7));
+
+    // 빌드 시 1회 전처리 — 이후 셀당 O(1) 조회 (이전: O(n) × 42)
+    final eventsByDate = <String, List<EventEntity>>{};
+    for (final e in data.events) {
+      if (e.startAt.isSameDay(e.endAt)) {
+        (eventsByDate[e.startAt.toDateString()] ??= []).add(e);
+      }
+    }
+    for (final h in data.habits) {
+      (eventsByDate[h.startAt.toDateString()] ??= []).add(h);
+    }
+
+    final holidayByDate = <String, HolidayEntity>{};
+    for (final h in data.holidays) {
+      holidayByDate[h.date.toDateString()] = h;
+    }
+
+    // getter 대신 로컬 변수 — build() 내 6회 반복 중복 할당 방지
+    final multiDayEvents = data.events
+        .where((e) => !e.startAt.isSameDay(e.endAt))
+        .toList();
+
+    final today = DateTime.now();
 
     return Column(
       children: [
@@ -185,8 +181,10 @@ class CalendarGridWidget extends StatelessWidget {
                         Row(
                           children: weekDays.map((day) {
                             final isCurrent = day.month == month;
-                            final isToday = _isSameDay(day, DateTime.now());
-                            final isSelected = _isSameDay(day, selectedDay);
+                            final isToday = day.isSameDay(today);
+                            final isSelected = day.isSameDay(selectedDay);
+                            final key = day.toDateString();
+                            final holiday = holidayByDate[key];
                             return SizedBox(
                               width: cellWidth,
                               height: cellHeight,
@@ -195,18 +193,21 @@ class CalendarGridWidget extends StatelessWidget {
                                 isCurrentMonth: isCurrent,
                                 isSelected: isSelected,
                                 isToday: isToday,
-                                events: isCurrent ? _eventsForDay(day) : [],
-                                isHoliday: _isHoliday(day),
-                                holidayName: _holidayName(day),
+                                events: isCurrent
+                                    ? (eventsByDate[key] ?? const [])
+                                    : const [],
+                                isHoliday: holiday != null,
+                                holidayName: holiday?.name,
                                 onTap: () => onDaySelected(day),
-                                drawingThumbnailUrl: isCurrent ? _thumbnailForDay(day) : null,
+                                drawingThumbnailUrl:
+                                    isCurrent ? _thumbnailForDay(day) : null,
                               ),
                             );
                           }).toList(),
                         ),
                         ..._buildRangeBarsForWeek(
                           weekDays,
-                          [...data.ranges, ..._multiDayEvents],
+                          [...data.ranges, ...multiDayEvents],
                           cellWidth,
                           cellHeight,
                         ),

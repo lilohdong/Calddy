@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/utils/extensions.dart';
 import '../../../calendar/domain/entities/event_entity.dart';
 import '../../../calendar/domain/usecases/complete_event_usecase.dart';
 import '../providers/calendar_providers.dart';
@@ -21,9 +22,6 @@ class DateBottomSheet extends ConsumerWidget {
 
   final DateTime date;
   final VoidCallback onAddPressed;
-
-  static bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -89,18 +87,15 @@ class DateBottomSheet extends ConsumerWidget {
                           date.year, date.month, date.day);
                       final events = [
                         ...data.events
-                            .where((e) => _isSameDay(e.startAt, date)),
+                            .where((e) => e.startAt.isSameDay(date)),
                         ...data.habits
-                            .where((e) => _isSameDay(e.startAt, date)),
+                            .where((e) => e.startAt.isSameDay(date)),
                         // 구간: 선택한 날짜가 구간 범위에 포함된 항목
-                        ...data.ranges.where((r) {
-                          final rs = DateTime(
-                              r.startAt.year, r.startAt.month, r.startAt.day);
-                          final re = DateTime(
-                              r.endAt.year, r.endAt.month, r.endAt.day);
-                          return !selectedDate.isBefore(rs) &&
-                              !selectedDate.isAfter(re);
-                        }),
+                        ...data.ranges.where((r) =>
+                            !selectedDate.isBefore(DateTime(r.startAt.year,
+                                r.startAt.month, r.startAt.day)) &&
+                            !selectedDate.isAfter(DateTime(
+                                r.endAt.year, r.endAt.month, r.endAt.day))),
                       ];
                       if (events.isEmpty) {
                         return Center(

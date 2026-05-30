@@ -109,10 +109,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       data: (map) => map,
       orElse: () => <String, String?>{},
     );
-    final hasUnread = ref.watch(notificationsProvider).maybeWhen(
-      data: (list) => list.any((n) => !n.isRead),
-      orElse: () => false,
-    );
+    // hasUnread는 _NotificationBellButton 내부에서만 watch — 알림 갱신 시 캘린더 전체 리빌드 방지
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -164,29 +161,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 backgroundImage: NetworkImage(user!.avatarUrl!),
               ),
             ),
-          Stack(
-            alignment: Alignment.topRight,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined,
-                    color: Colors.black87),
-                onPressed: _showBell,
-              ),
-              if (hasUnread)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          _NotificationBellButton(onTap: _showBell),
           const SizedBox(width: 4),
         ],
       ),
@@ -540,5 +515,42 @@ class _NotifTile extends StatelessWidget {
       case NotificationType.postCommented:
         return Icons.chat_bubble_outline_rounded;
     }
+  }
+}
+
+// 알림 벨 + 읽지 않음 dot — notificationsProvider만 구독해 알림 갱신 시
+// CalendarPage 전체 대신 이 위젯만 리빌드됨
+class _NotificationBellButton extends ConsumerWidget {
+  const _NotificationBellButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasUnread = ref.watch(notificationsProvider).maybeWhen(
+      data: (list) => list.any((n) => !n.isRead),
+      orElse: () => false,
+    );
+    return Stack(
+      alignment: Alignment.topRight,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
+          onPressed: onTap,
+        ),
+        if (hasUnread)
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
