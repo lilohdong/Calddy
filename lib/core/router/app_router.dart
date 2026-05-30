@@ -19,7 +19,6 @@ import '../../features/calendar/presentation/pages/range_create_page.dart';
 import '../../features/calendar/presentation/pages/record_page.dart';
 import '../../features/map/presentation/pages/ai_midpoint_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
-import '../../features/feed/presentation/pages/post_create_page.dart';
 import '../../features/feed/presentation/pages/post_detail_page.dart';
 import '../../features/feed/presentation/pages/post_edit_page.dart';
 import '../../features/feed/domain/entities/post_entity.dart';
@@ -195,10 +194,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.feed,
             builder: (_, _) => const FeedPage(),
             routes: [
-              GoRoute(
-                path: 'post/create',
-                builder: (_, _) => const PostCreatePage(),
-              ),
               GoRoute(
                 path: 'post/:postId',
                 builder: (_, s) => PostDetailPage(

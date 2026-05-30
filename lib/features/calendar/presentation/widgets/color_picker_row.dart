@@ -4,6 +4,15 @@ const kColorOptions = [
   '#7C6AFA', '#4CAF50', '#FF9800', '#9C27B0', '#F44336', '#FFC107',
 ];
 
+// 최근 사용한 컬러 (최대 5개, 세션 유지)
+final _recentColors = <String>[];
+
+void _addRecentColor(String hex) {
+  _recentColors.remove(hex);
+  _recentColors.insert(0, hex);
+  if (_recentColors.length > 5) _recentColors.removeLast();
+}
+
 class ColorPickerRow extends StatelessWidget {
   const ColorPickerRow({
     super.key,
@@ -26,13 +35,22 @@ class ColorPickerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Merge: recent (up to 3) + presets, deduplicated
+    final allOptions = [
+      ..._recentColors.take(3),
+      ...options.where((h) => !_recentColors.contains(h)),
+    ];
+
     return Row(
       children: [
-        ...options.map((hex) {
+        ...allOptions.take(6).map((hex) {
           final c = fromHex(hex);
           final isSelected = selected == hex;
           return GestureDetector(
-            onTap: () => onChanged(hex),
+            onTap: () {
+              _addRecentColor(hex);
+              onChanged(hex);
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               width: 36,
@@ -49,7 +67,13 @@ class ColorPickerRow extends StatelessWidget {
                     : null,
               ),
               child: isSelected
-                  ? const Icon(Icons.check, color: Colors.white, size: 18)
+                  ? Icon(
+                      Icons.check,
+                      color: c.computeLuminance() > 0.35
+                          ? Colors.black87
+                          : Colors.white,
+                      size: 18,
+                    )
                   : null,
             ),
           );
@@ -61,7 +85,10 @@ class ColorPickerRow extends StatelessWidget {
                 context: ctx,
                 builder: (_) => const _CustomColorDialog(),
               );
-              if (picked != null) onChanged(picked);
+              if (picked != null) {
+                _addRecentColor(picked);
+                onChanged(picked);
+              }
             },
             child: Container(
               width: 36,
@@ -88,6 +115,7 @@ class _CustomColorDialog extends StatefulWidget {
 class _CustomColorDialogState extends State<_CustomColorDialog> {
   final _hexCtrl = TextEditingController(text: '7C6AFA');
   String? _error;
+  String? _selectedPaletteHex;
 
   // Predefined color palette (Material-inspired)
   static const _palette = [
@@ -200,6 +228,7 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
                   onTap: () {
                     setState(() {
                       _hexCtrl.text = hex.replaceFirst('#', '');
+                      _selectedPaletteHex = hex;
                     });
                   },
                   child: Container(
@@ -207,6 +236,17 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
                       color: c,
                       borderRadius: BorderRadius.circular(10),
                     ),
+                    child: _selectedPaletteHex == hex
+                        ? Center(
+                            child: Icon(
+                              Icons.check,
+                              color: c.computeLuminance() > 0.35
+                                  ? Colors.black87
+                                  : Colors.white,
+                              size: 20,
+                            ),
+                          )
+                        : null,
                   ),
                 );
               },
