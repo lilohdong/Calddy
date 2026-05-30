@@ -8,6 +8,9 @@ import '../../../calendar/domain/usecases/complete_event_usecase.dart';
 import '../providers/calendar_providers.dart';
 import 'color_picker_row.dart';
 
+// 세션 내 기록 완료한 이벤트 ID 추적
+final _recordedEventIds = <String>{};
+
 // ── DateBottomSheet ────────────────────────────────────────────────
 class DateBottomSheet extends ConsumerWidget {
   const DateBottomSheet({
@@ -241,18 +244,35 @@ class EventListTile extends ConsumerWidget {
                 ),
                 child: const Text('일정 완료'),
               )
-            else
-              TextButton(
-                onPressed: () {
-                  context.pop();
-                  context.push(AppRoutes.recordPath(event.id));
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF7C6AFA),
+            else ...[
+              if (_recordedEventIds.contains(event.id))
+                TextButton(
+                  onPressed: () {
+                    context.pop();
+                    context.push(AppRoutes.recordPath(event.id));
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey,
+                  ),
+                  child: const Text('수정', style: TextStyle(fontSize: 12)),
+                )
+              else
+                TextButton(
+                  onPressed: () async {
+                    context.pop();
+                    final result = await context.push<bool>(
+                        AppRoutes.recordPath(event.id));
+                    if (result == true) {
+                      _recordedEventIds.add(event.id);
+                    }
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF7C6AFA),
+                  ),
+                  child: const Text('기록하기',
+                      style: TextStyle(fontSize: 12)),
                 ),
-                child: const Text('기록하기',
-                    style: TextStyle(fontSize: 12)),
-              ),
+            ],
           ],
         ),
       ),

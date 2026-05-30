@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+
+import '../../../feed/domain/entities/post_entity.dart';
+import '../../../feed/domain/usecases/create_post_usecase.dart';
+import '../../../feed/presentation/providers/feed_providers.dart';
 
 class RecordPage extends ConsumerStatefulWidget {
   const RecordPage({super.key, required this.eventId});
@@ -40,15 +45,47 @@ class _RecordPageState extends ConsumerState<RecordPage> {
       return;
     }
     setState(() => _isLoading = true);
-    // TODO: ref.read(createPostUseCaseProvider).call(...) — 피드 팀 Provider 연결 후 구현
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('기록이 저장되었습니다.')),
+    try {
+      List<int>? imageBytes;
+      String? imageExtension;
+      if (_selectedImage != null) {
+        imageBytes = await _selectedImage!.readAsBytes();
+        final ext = _selectedImage!.path.split('.').last.toLowerCase();
+        imageExtension = ext.isEmpty ? 'jpg' : ext;
+      }
+
+      await ref.read(createPostUseCaseProvider).call(
+        CreatePostParams(
+          content: _contentCtrl.text.trim().isEmpty
+              ? null
+              : _contentCtrl.text.trim(),
+          imageBytes: imageBytes,
+          imageExtension: imageExtension,
+          visibility: _isPublic
+              ? PostVisibility.public
+              : PostVisibility.private,
+          feedDate: DateTime.now(),
+          eventId: widget.eventId,
+        ),
       );
-      context.pop();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('피드에 기록이 올라갔어요! 🎉')),
+        );
+        context.pop(true); // return true = recorded successfully
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('저장에 실패했습니다: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
