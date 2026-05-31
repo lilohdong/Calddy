@@ -35,20 +35,40 @@ class FriendAvatarChip extends ConsumerWidget {
 
     int? overlapDays;
     if (showOverlapBadge) {
-      final slotsAsync = ref.watch(mergeCalendarProvider(friend.friendId));
-      overlapDays = slotsAsync.maybeWhen(
-        data: (slots) {
-          final days = <String>{};
-          for (final s in slots) {
-            var d = DateTime(s.startAt.year, s.startAt.month, s.startAt.day);
-            final end = DateTime(s.endAt.year, s.endAt.month, s.endAt.day);
-            while (!d.isAfter(end)) {
-              days.add('${d.year}-${d.month}-${d.day}');
-              d = d.add(const Duration(days: 1));
+      // 내 이번 달 일정 + 친구 이번 달 일정을 비교해서
+      // 둘 다 이벤트 없는 날(진짜 빈날) 수를 배지로 표시
+      final myEventsAsync =
+          ref.watch(friendCalendarProvider(friend.userId));
+      final friendEventsAsync =
+          ref.watch(friendCalendarProvider(friend.friendId));
+
+      overlapDays = myEventsAsync.maybeWhen(
+        data: (myEvents) => friendEventsAsync.maybeWhen(
+          data: (friendEvents) {
+            final now = DateTime.now();
+            final daysInMonth =
+                DateUtils.getDaysInMonth(now.year, now.month);
+
+            // 바쁜 날 수집
+            final busyDays = <int>{};
+            for (final e in myEvents) {
+              if (e.startAt.year == now.year &&
+                  e.startAt.month == now.month) {
+                busyDays.add(e.startAt.day);
+              }
             }
-          }
-          return days.length;
-        },
+            for (final e in friendEvents) {
+              if (e.startAt.year == now.year &&
+                  e.startAt.month == now.month) {
+                busyDays.add(e.startAt.day);
+              }
+            }
+
+            // 빈날 = 전체 - 바쁜 날
+            return daysInMonth - busyDays.length;
+          },
+          orElse: () => null,
+        ),
         orElse: () => null,
       );
     }
