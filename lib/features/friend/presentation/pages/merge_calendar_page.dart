@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/error/failures.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/free_slot_entity.dart';
 import '../../domain/entities/friend_calendar_event_entity.dart';
 import '../../domain/entities/friend_entity.dart';
@@ -18,10 +19,10 @@ class MergeCalendarPage extends ConsumerStatefulWidget {
 }
 
 class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
-  // 5번: 초기값 아무도 선택 안 된 상태
   final Set<String> _selectedIds = {};
   DateTime _current = DateTime(DateTime.now().year, DateTime.now().month);
   int? _recommendedDay;
+  bool _autoNavigated = false; // 빈 날짜 달로 자동 이동 여부
 
   static const _palette = [
     Color(0xFF5BB5E8),
@@ -38,6 +39,9 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
     final friendsAsync =
         ref.watch(friendsProvider(FriendSortType.freeTimeOverlap));
 
+    // 내 유저 ID
+    final myId = ref.watch(currentUserProvider)?.id;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F7FF),
       appBar: AppBar(
@@ -51,7 +55,6 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
           ),
           onPressed: () => context.pop(),
         ),
-        // 7번: 오른쪽 완료 버튼 제거
         title: const Text(
           '친구와 일정 합치기',
           style: TextStyle(
@@ -77,20 +80,30 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
               ? ref.watch(mergeCalendarProvider(friendIdsKey))
               : const AsyncValue<List<FreeSlotEntity>>.data([]);
 
-          // 각 친구의 공개 일정
+          // ── 내 공개 일정 ──────────────────────────────────────
+          List<FriendCalendarEventEntity> myEvents = [];
+          if (myId != null) {
+            ref.watch(friendCalendarProvider(myId)).whenData(
+              (evs) => myEvents = evs,
+            );
+          }
+
+          // ── 친구 공개 일정 ────────────────────────────────────
           final Map<String, List<FriendCalendarEventEntity>> friendEvents = {};
           for (final entry in indexedFriends) {
             ref.watch(friendCalendarProvider(entry.value.friendId)).whenData(
-                  (evs) => friendEvents[entry.value.friendId] = evs,
-                );
+              (evs) => friendEvents[entry.value.friendId] = evs,
+            );
           }
 
-          // 빈 날짜 계산 — 슬롯 범위 내 모든 날짜를 추가
+          // ── 빈 날짜 계산 — 슬롯 범위 내 모든 날짜 추가 ──────
           final freeDays = <int>{};
           slotsAsync.whenData((slots) {
             for (final s in slots) {
-              var d = DateTime(s.startAt.year, s.startAt.month, s.startAt.day);
-              final endDay = DateTime(s.endAt.year, s.endAt.month, s.endAt.day);
+              var d = DateTime(
+                  s.startAt.year, s.startAt.month, s.startAt.day);
+              final endDay =
+                  DateTime(s.endAt.year, s.endAt.month, s.endAt.day);
               while (!d.isAfter(endDay)) {
                 if (d.year == _current.year && d.month == _current.month) {
                   freeDays.add(d.day);
@@ -98,6 +111,24 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                 d = d.add(const Duration(days: 1));
               }
             }
+
+            // 현재 달에 빈 날짜가 없으면 첫 번째 빈 날짜 달로 자동 이동
+            if (freeDays.isEmpty && slots.isNotEmpty && !_autoNavigated) {
+              final firstSlot = slots.first;
+              final targetMonth = DateTime(
+                  firstSlot.startAt.year, firstSlot.startAt.month);
+              if (targetMonth != _current) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    setState(() {
+                      _current = targetMonth;
+                      _autoNavigated = true;
+                    });
+                  }
+                });
+              }
+            }
+
             // 추천 날짜: 빈 날짜 중 랜덤 1개 (미설정 시에만)
             if (freeDays.isNotEmpty && _recommendedDay == null) {
               final list = freeDays.toList();
@@ -112,7 +143,7 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
 
           return Column(
             children: [
-              // 6번: 상단 흰 영역 고정 높이
+              // 상단 친구 선택 + 범례 (고정 높이)
               Container(
                 color: Colors.white,
                 child: Column(
@@ -134,7 +165,6 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // 친구 선택 스크롤 (고정 높이)
                     SizedBox(
                       height: 88,
                       child: ListView.builder(
@@ -143,7 +173,8 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                         itemCount: friends.length,
                         itemBuilder: (_, idx) {
                           final f = friends[idx];
-                          final isSelected = _selectedIds.contains(f.friendId);
+                          final isSelected =
+                              _selectedIds.contains(f.friendId);
                           final nickname = f.friendProfile.nickname ?? '?';
                           return Padding(
                             padding: const EdgeInsets.only(right: 16),
@@ -155,13 +186,14 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                                   _selectedIds.add(f.friendId);
                                 }
                                 _recommendedDay = null;
+                                _autoNavigated = false;
                               }),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // 4번: 아바타 배경색 제거 — 선택 여부만 표시
                                   AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
+                                    duration:
+                                        const Duration(milliseconds: 180),
                                     width: 52,
                                     height: 52,
                                     decoration: BoxDecoration(
@@ -233,7 +265,8 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                                   padding: const EdgeInsets.only(left: 16),
                                   child: _LegendDot(
                                     color: _friendColor(e.key),
-                                    label: e.value.friendProfile.nickname ?? '',
+                                    label:
+                                        e.value.friendProfile.nickname ?? '',
                                   ),
                                 )),
                             const SizedBox(width: 16),
@@ -275,9 +308,11 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                           onMonthChanged: (d) => setState(() {
                             _current = d;
                             _recommendedDay = null;
+                            _autoNavigated = false;
                           }),
                           freeDays: freeDays,
                           recommendedDay: _recommendedDay,
+                          myEvents: myEvents,
                           selectedFriends: selectedIndexed
                               .map((e) => (
                                     friend: e.value,
@@ -350,6 +385,7 @@ class _MergeCalendarGrid extends StatelessWidget {
     required this.onMonthChanged,
     required this.freeDays,
     required this.recommendedDay,
+    required this.myEvents,
     required this.selectedFriends,
     required this.onSelectDay,
   });
@@ -358,17 +394,31 @@ class _MergeCalendarGrid extends StatelessWidget {
   final void Function(DateTime) onMonthChanged;
   final Set<int> freeDays;
   final int? recommendedDay;
+  final List<FriendCalendarEventEntity> myEvents;
   final List<_FriendSlot> selectedFriends;
   final void Function(int) onSelectDay;
 
   @override
   Widget build(BuildContext context) {
     final daysInMonth = DateUtils.getDaysInMonth(current.year, current.month);
-    final firstWeekday = DateTime(current.year, current.month, 1).weekday % 7;
+    final firstWeekday =
+        DateTime(current.year, current.month, 1).weekday % 7;
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     final now = DateTime.now();
 
+    // 이벤트 맵: day → list of (color, title)
     final Map<int, List<({Color color, String title})>> eventMap = {};
+
+    // 내 일정 (보라색)
+    for (final e in myEvents) {
+      if (e.startAt.year == current.year && e.startAt.month == current.month) {
+        eventMap
+            .putIfAbsent(e.startAt.day, () => [])
+            .add((color: const Color(0xFF7C6AFA), title: e.title));
+      }
+    }
+
+    // 친구 일정
     for (final fw in selectedFriends) {
       for (final e in fw.events) {
         if (e.startAt.year == current.year &&
@@ -388,13 +438,13 @@ class _MergeCalendarGrid extends StatelessWidget {
             GestureDetector(
               onTap: () =>
                   onMonthChanged(DateTime(current.year, current.month - 1)),
-              child:
-                  const Icon(Icons.chevron_left, size: 24, color: Colors.grey),
+              child: const Icon(Icons.chevron_left,
+                  size: 24, color: Colors.grey),
             ),
             Text(
               '${current.year}년 ${current.month}월 ▾',
-              style:
-                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 16),
             ),
             GestureDetector(
               onTap: () =>
@@ -604,7 +654,8 @@ class _LegendDot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: isOutlined ? const Color(0xFFDCF0DA) : color,
-            border: isOutlined ? Border.all(color: color, width: 1.5) : null,
+            border:
+                isOutlined ? Border.all(color: color, width: 1.5) : null,
           ),
         ),
         const SizedBox(width: 5),

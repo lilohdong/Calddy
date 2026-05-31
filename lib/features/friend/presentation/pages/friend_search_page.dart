@@ -48,7 +48,25 @@ class _FriendSearchPageState extends ConsumerState<FriendSearchPage> {
       final data = await ref
           .read(searchUsersUseCaseProvider)
           .call(SearchUsersParams(query: q));
-      if (mounted) setState(() => _results = AsyncValue.data(data));
+      // 정렬 기준: 액션 우선순위순
+      //  1. requestReceived — 수락 대기 중 (가장 먼저 확인해야 함)
+      //  2. none            — 친구 추가 가능
+      //  3. requestSent     — 이미 요청 보냄
+      //  4. friend          — 이미 친구
+      // 같은 그룹 내에서는 닉네임 오름차순
+      final sorted = [...data]..sort((a, b) {
+          int priority(FriendRelationStatus s) => switch (s) {
+                FriendRelationStatus.requestReceived => 0,
+                FriendRelationStatus.none => 1,
+                FriendRelationStatus.requestSent => 2,
+                FriendRelationStatus.friend => 3,
+              };
+          final cmp =
+              priority(a.relationStatus).compareTo(priority(b.relationStatus));
+          if (cmp != 0) return cmp;
+          return a.nickname.compareTo(b.nickname);
+        });
+      if (mounted) setState(() => _results = AsyncValue.data(sorted));
     } catch (e, st) {
       if (mounted) setState(() => _results = AsyncValue.error(e, st));
     }
