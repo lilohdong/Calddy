@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/friend_calendar_event_entity.dart';
 
 class FriendMiniCalendar extends StatefulWidget {
-  const FriendMiniCalendar({super.key, required this.events});
+  const FriendMiniCalendar({
+    super.key,
+    required this.events,
+    this.onMonthChanged,
+  });
 
   final List<FriendCalendarEventEntity> events;
+  final void Function(DateTime month)? onMonthChanged;
 
   @override
   State<FriendMiniCalendar> createState() => _FriendMiniCalendarState();
@@ -49,9 +54,11 @@ class _FriendMiniCalendarState extends State<FriendMiniCalendar> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             GestureDetector(
-              onTap: () => setState(
-                () => _current = DateTime(_current.year, _current.month - 1),
-              ),
+              onTap: () {
+                final next = DateTime(_current.year, _current.month - 1);
+                setState(() => _current = next);
+                widget.onMonthChanged?.call(next);
+              },
               child: const Icon(Icons.chevron_left, size: 20, color: Colors.grey),
             ),
             Text(
@@ -59,9 +66,11 @@ class _FriendMiniCalendarState extends State<FriendMiniCalendar> {
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
             GestureDetector(
-              onTap: () => setState(
-                () => _current = DateTime(_current.year, _current.month + 1),
-              ),
+              onTap: () {
+                final next = DateTime(_current.year, _current.month + 1);
+                setState(() => _current = next);
+                widget.onMonthChanged?.call(next);
+              },
               child: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
             ),
           ],

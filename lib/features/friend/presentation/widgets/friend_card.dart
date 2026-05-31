@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../domain/entities/friend_calendar_event_entity.dart';
 import '../../domain/entities/friend_entity.dart';
+import '../../domain/usecases/get_friend_calendar_use_case.dart';
 import '../providers/friend_providers.dart';
 import 'friend_avatar_chip.dart';
 import 'friend_mini_calendar.dart';
@@ -214,32 +216,62 @@ class _MoreMenu extends StatelessWidget {
   }
 }
 
-class _ExpandedCalendar extends ConsumerWidget {
+class _ExpandedCalendar extends ConsumerStatefulWidget {
   const _ExpandedCalendar({required this.friendId});
   final String friendId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final eventsAsync = ref.watch(friendCalendarProvider(friendId));
+  ConsumerState<_ExpandedCalendar> createState() => _ExpandedCalendarState();
+}
 
+class _ExpandedCalendarState extends ConsumerState<_ExpandedCalendar> {
+  List<FriendCalendarEventEntity> _events = [];
+  bool _isLoading = true;
+  DateTime _currentMonth = DateTime(DateTime.now().year, DateTime.now().month);
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEvents(_currentMonth);
+  }
+
+  Future<void> _fetchEvents(DateTime month) async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final from = DateTime(month.year, month.month, 1);
+      final to = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+      final events = await ref.read(getFriendCalendarUseCaseProvider).call(
+            GetFriendCalendarParams(
+              friendId: widget.friendId,
+              from: from,
+              to: to,
+            ),
+          );
+      if (mounted) setState(() => _events = events);
+    } catch (_) {
+      if (mounted) setState(() => _events = []);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: eventsAsync.when(
-        loading: () => const SizedBox(
-          height: 160,
-          child: Center(child: CircularProgressIndicator()),
-        ),
-        error: (_, _) => const SizedBox(
-          height: 60,
-          child: Center(
-            child: Text(
-              '일정을 불러오지 못했어요',
-              style: TextStyle(color: Colors.grey),
+      child: _isLoading
+          ? const SizedBox(
+              height: 160,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          : FriendMiniCalendar(
+              events: _events,
+              onMonthChanged: (month) {
+                _currentMonth = month;
+                _fetchEvents(month);
+              },
             ),
-          ),
-        ),
-        data: (events) => FriendMiniCalendar(events: events),
-      ),
     );
   }
 }
