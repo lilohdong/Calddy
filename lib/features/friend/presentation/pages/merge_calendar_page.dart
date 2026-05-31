@@ -9,6 +9,7 @@ import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/free_slot_entity.dart';
 import '../../domain/entities/friend_calendar_event_entity.dart';
 import '../../domain/entities/friend_entity.dart';
+import '../../domain/usecases/merge_calendars_use_case.dart';
 import '../providers/friend_providers.dart';
 
 class MergeCalendarPage extends ConsumerStatefulWidget {
@@ -22,7 +23,11 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
   final Set<String> _selectedIds = {};
   DateTime _current = DateTime(DateTime.now().year, DateTime.now().month);
   int? _recommendedDay;
-  bool _autoNavigated = false; // 빈 날짜 달로 자동 이동 여부
+  bool _tooltipDismissed = false;
+
+  // 현재 달 기준 빈 슬롯 상태 (Provider 우회, UseCase 직접 호출)
+  AsyncValue<List<FreeSlotEntity>> _slotsState =
+      const AsyncValue.data([]);
 
   static const _palette = [
     Color(0xFF5BB5E8),
@@ -34,12 +39,63 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
 
   Color _friendColor(int index) => _palette[index % _palette.length];
 
+  Future<void> _fetchSlots() async {
+    if (_selectedIds.isEmpty) {
+      setState(() {
+        _slotsState = const AsyncValue.data([]);
+        _recommendedDay = null;
+        _tooltipDismissed = false;
+      });
+      return;
+    }
+    setState(() => _slotsState = const AsyncValue.loading());
+    try {
+      // 현재 보고 있는 달(month) 전체를 기준으로 계산
+      final from = DateTime(_current.year, _current.month, 1);
+      final to = DateTime(_current.year, _current.month + 1, 0, 23, 59, 59);
+      final slots = await ref.read(mergeCalendarsUseCaseProvider).call(
+            MergeCalendarsParams(
+              friendIds: _selectedIds.toList(),
+              from: from,
+              to: to,
+            ),
+          );
+      if (!mounted) return;
+
+      // 빈 날짜 추출
+      final freeDays = <int>{};
+      for (final s in slots) {
+        var d = DateTime(s.startAt.year, s.startAt.month, s.startAt.day);
+        final endDay = DateTime(s.endAt.year, s.endAt.month, s.endAt.day);
+        while (!d.isAfter(endDay)) {
+          if (d.year == _current.year && d.month == _current.month) {
+            freeDays.add(d.day);
+          }
+          d = d.add(const Duration(days: 1));
+        }
+      }
+
+      // 랜덤 추천 날짜
+      int? recommended;
+      if (freeDays.isNotEmpty) {
+        final list = freeDays.toList();
+        recommended = list[Random().nextInt(list.length)];
+      }
+
+      setState(() {
+        _slotsState = AsyncValue.data(slots);
+        _recommendedDay = recommended;
+        _tooltipDismissed = false;
+      });
+    } catch (e, st) {
+      if (mounted) setState(() => _slotsState = AsyncValue.error(e, st));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final friendsAsync =
         ref.watch(friendsProvider(FriendSortType.freeTimeOverlap));
-
-    // 내 유저 ID
     final myId = ref.watch(currentUserProvider)?.id;
 
     return Scaffold(
@@ -48,11 +104,8 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            size: 18,
-            color: Colors.black87,
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: Colors.black87),
           onPressed: () => context.pop(),
         ),
         title: const Text(
@@ -75,33 +128,28 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
               .where((e) => _selectedIds.contains(e.value.friendId))
               .toList();
 
-          final friendIdsKey = _selectedIds.join(',');
-          final slotsAsync = _selectedIds.isNotEmpty
-              ? ref.watch(mergeCalendarProvider(friendIdsKey))
-              : const AsyncValue<List<FreeSlotEntity>>.data([]);
-
-          // ── 내 공개 일정 ──────────────────────────────────────
+          // 내 공개 일정
           List<FriendCalendarEventEntity> myEvents = [];
           if (myId != null) {
             ref.watch(friendCalendarProvider(myId)).whenData(
-              (evs) => myEvents = evs,
-            );
+                  (evs) => myEvents = evs,
+                );
           }
 
-          // ── 친구 공개 일정 ────────────────────────────────────
+          // 친구 공개 일정
           final Map<String, List<FriendCalendarEventEntity>> friendEvents = {};
           for (final entry in indexedFriends) {
-            ref.watch(friendCalendarProvider(entry.value.friendId)).whenData(
-              (evs) => friendEvents[entry.value.friendId] = evs,
-            );
+            ref
+                .watch(friendCalendarProvider(entry.value.friendId))
+                .whenData((evs) => friendEvents[entry.value.friendId] = evs);
           }
 
-          // ── 빈 날짜 계산 — 슬롯 범위 내 모든 날짜 추가 ──────
+          // 빈 날짜 추출 (현재 달 기준)
           final freeDays = <int>{};
-          slotsAsync.whenData((slots) {
+          _slotsState.whenData((slots) {
             for (final s in slots) {
-              var d = DateTime(
-                  s.startAt.year, s.startAt.month, s.startAt.day);
+              var d =
+                  DateTime(s.startAt.year, s.startAt.month, s.startAt.day);
               final endDay =
                   DateTime(s.endAt.year, s.endAt.month, s.endAt.day);
               while (!d.isAfter(endDay)) {
@@ -111,39 +159,13 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                 d = d.add(const Duration(days: 1));
               }
             }
-
-            // 현재 달에 빈 날짜가 없으면 첫 번째 빈 날짜 달로 자동 이동
-            if (freeDays.isEmpty && slots.isNotEmpty && !_autoNavigated) {
-              final firstSlot = slots.first;
-              final targetMonth = DateTime(
-                  firstSlot.startAt.year, firstSlot.startAt.month);
-              if (targetMonth != _current) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    setState(() {
-                      _current = targetMonth;
-                      _autoNavigated = true;
-                    });
-                  }
-                });
-              }
-            }
-
-            // 추천 날짜: 빈 날짜 중 랜덤 1개 (미설정 시에만)
-            if (freeDays.isNotEmpty && _recommendedDay == null) {
-              final list = freeDays.toList();
-              final pick = list[Random().nextInt(list.length)];
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) setState(() => _recommendedDay = pick);
-              });
-            }
           });
 
           final selectedCount = _selectedIds.length;
 
           return Column(
             children: [
-              // 상단 친구 선택 + 범례 (고정 높이)
+              // ── 상단 친구 선택 + 범례 ──────────────────────────
               Container(
                 color: Colors.white,
                 child: Column(
@@ -179,21 +201,20 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                           return Padding(
                             padding: const EdgeInsets.only(right: 16),
                             child: GestureDetector(
-                              onTap: () => setState(() {
+                              onTap: () {
                                 if (isSelected) {
                                   _selectedIds.remove(f.friendId);
                                 } else {
                                   _selectedIds.add(f.friendId);
                                 }
-                                _recommendedDay = null;
-                                _autoNavigated = false;
-                              }),
+                                _fetchSlots();
+                              },
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   AnimatedContainer(
-                                    duration:
-                                        const Duration(milliseconds: 180),
+                                    duration: const Duration(
+                                        milliseconds: 180),
                                     width: 52,
                                     height: 52,
                                     decoration: BoxDecoration(
@@ -204,12 +225,10 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                                       border: isSelected
                                           ? Border.all(
                                               color: const Color(0xFF7C6AFA),
-                                              width: 2.5,
-                                            )
+                                              width: 2.5)
                                           : Border.all(
                                               color: Colors.grey.shade300,
-                                              width: 1,
-                                            ),
+                                              width: 1),
                                     ),
                                     child: Center(
                                       child: Text(
@@ -249,7 +268,7 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // 범례 (고정 높이)
+                    // 범례
                     SizedBox(
                       height: 36,
                       child: SingleChildScrollView(
@@ -258,9 +277,8 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                         child: Row(
                           children: [
                             _LegendDot(
-                              color: const Color(0xFF7C6AFA),
-                              label: '내 일정',
-                            ),
+                                color: const Color(0xFF7C6AFA),
+                                label: '내 일정'),
                             ...selectedIndexed.map((e) => Padding(
                                   padding: const EdgeInsets.only(left: 16),
                                   child: _LegendDot(
@@ -284,14 +302,14 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                 ),
               ),
 
-              // 달력
+              // ── 달력 ──────────────────────────────────────────
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
                       Container(
                         margin: const EdgeInsets.all(16),
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -303,26 +321,43 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                             ),
                           ],
                         ),
-                        child: _MergeCalendarGrid(
-                          current: _current,
-                          onMonthChanged: (d) => setState(() {
-                            _current = d;
-                            _recommendedDay = null;
-                            _autoNavigated = false;
-                          }),
-                          freeDays: freeDays,
-                          recommendedDay: _recommendedDay,
-                          myEvents: myEvents,
-                          selectedFriends: selectedIndexed
-                              .map((e) => (
-                                    friend: e.value,
-                                    color: _friendColor(e.key),
-                                    events:
-                                        friendEvents[e.value.friendId] ?? [],
-                                  ))
-                              .toList(),
-                          onSelectDay: (d) =>
-                              setState(() => _recommendedDay = d),
+                        child: _slotsState.when(
+                          loading: () => const SizedBox(
+                            height: 300,
+                            child: Center(
+                                child: CircularProgressIndicator()),
+                          ),
+                          error: (_, _) => const SizedBox(
+                            height: 100,
+                            child: Center(
+                                child: Text('불러오기 실패',
+                                    style:
+                                        TextStyle(color: Colors.grey))),
+                          ),
+                          data: (_) => _MergeCalendarGrid(
+                            current: _current,
+                            onMonthChanged: (d) {
+                              setState(() => _current = d);
+                              _fetchSlots();
+                            },
+                            freeDays: freeDays,
+                            recommendedDay:
+                                _tooltipDismissed ? null : _recommendedDay,
+                            myEvents: myEvents,
+                            selectedFriends: selectedIndexed
+                                .map((e) => (
+                                      friend: e.value,
+                                      color: _friendColor(e.key),
+                                      events: friendEvents[
+                                              e.value.friendId] ??
+                                          [],
+                                    ))
+                                .toList(),
+                            onSelectDay: (d) =>
+                                setState(() => _recommendedDay = d),
+                            onDismissTooltip: () => setState(
+                                () => _tooltipDismissed = true),
+                          ),
                         ),
                       ),
                       Padding(
@@ -330,9 +365,7 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                         child: Text(
                           '· 모두 비어있는 날은 연두색으로 표시돼요!',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade500,
-                          ),
+                              fontSize: 12, color: Colors.grey.shade500),
                         ),
                       ),
                       const SizedBox(height: 80),
@@ -356,13 +389,10 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                    borderRadius: BorderRadius.circular(16)),
                 elevation: 0,
                 textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+                    fontSize: 16, fontWeight: FontWeight.w700),
               ),
               child: const Text('확인 완료'),
             ),
@@ -373,11 +403,15 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
   }
 }
 
+// ── 타입 정의 ──────────────────────────────────────────────────────────────────
+
 typedef _FriendSlot = ({
   FriendEntity friend,
   Color color,
   List<FriendCalendarEventEntity> events,
 });
+
+// ── 달력 그리드 ────────────────────────────────────────────────────────────────
 
 class _MergeCalendarGrid extends StatelessWidget {
   const _MergeCalendarGrid({
@@ -388,6 +422,7 @@ class _MergeCalendarGrid extends StatelessWidget {
     required this.myEvents,
     required this.selectedFriends,
     required this.onSelectDay,
+    required this.onDismissTooltip,
   });
 
   final DateTime current;
@@ -397,10 +432,12 @@ class _MergeCalendarGrid extends StatelessWidget {
   final List<FriendCalendarEventEntity> myEvents;
   final List<_FriendSlot> selectedFriends;
   final void Function(int) onSelectDay;
+  final VoidCallback onDismissTooltip;
 
   @override
   Widget build(BuildContext context) {
-    final daysInMonth = DateUtils.getDaysInMonth(current.year, current.month);
+    final daysInMonth =
+        DateUtils.getDaysInMonth(current.year, current.month);
     final firstWeekday =
         DateTime(current.year, current.month, 1).weekday % 7;
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
@@ -409,16 +446,13 @@ class _MergeCalendarGrid extends StatelessWidget {
     // 이벤트 맵: day → list of (color, title)
     final Map<int, List<({Color color, String title})>> eventMap = {};
 
-    // 내 일정 (보라색)
     for (final e in myEvents) {
       if (e.startAt.year == current.year && e.startAt.month == current.month) {
-        eventMap
-            .putIfAbsent(e.startAt.day, () => [])
-            .add((color: const Color(0xFF7C6AFA), title: e.title));
+        eventMap.putIfAbsent(e.startAt.day, () => []).add(
+              (color: const Color(0xFF7C6AFA), title: e.title),
+            );
       }
     }
-
-    // 친구 일정
     for (final fw in selectedFriends) {
       for (final e in fw.events) {
         if (e.startAt.year == current.year &&
@@ -431,7 +465,9 @@ class _MergeCalendarGrid extends StatelessWidget {
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 월 헤더
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -454,7 +490,45 @@ class _MergeCalendarGrid extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+
+        // 추천 날짜 배너 (dismissible)
+        if (recommendedDay != null && freeDays.isNotEmpty)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEDE9FF),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.star_rounded,
+                      size: 16, color: Color(0xFF7C6AFA)),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${current.month}월 ${recommendedDay}일은 어떠세요?',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF5B50D6),
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: onDismissTooltip,
+                    child: Icon(Icons.close,
+                        size: 16, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        // 요일 헤더
         Row(
           children: weekdays
               .asMap()
@@ -475,154 +549,114 @@ class _MergeCalendarGrid extends StatelessWidget {
                   ))
               .toList(),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
+
+        // 달력 그리드 — GridView로 균일한 셀
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 7,
-            childAspectRatio: 0.65,
+            crossAxisSpacing: 2,
+            mainAxisSpacing: 2,
+            childAspectRatio: 0.72,
           ),
           itemCount: firstWeekday + daysInMonth,
           itemBuilder: (_, i) {
-            if (i < firstWeekday) return const SizedBox();
+            if (i < firstWeekday) {
+              return const SizedBox();
+            }
             final day = i - firstWeekday + 1;
             final isToday = now.year == current.year &&
                 now.month == current.month &&
                 now.day == day;
             final isFree = freeDays.contains(day);
-            final isRecommended = recommendedDay == day;
+            final isRecommended = recommendedDay == day && !false;
             final dayEvents = eventMap[day] ?? [];
             final isSunday = (i % 7) == 0;
 
             return GestureDetector(
               onTap: isFree ? () => onSelectDay(day) : null,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    margin: const EdgeInsets.all(1.5),
-                    decoration: BoxDecoration(
-                      color: isFree
-                          ? const Color(0xFFDCF0DA)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
-                      border: isRecommended
-                          ? Border.all(
-                              color: const Color(0xFF7C6AFA), width: 1.5)
+              child: Container(
+                decoration: BoxDecoration(
+                  // 연두색으로 셀 전체 채우기
+                  color: isFree
+                      ? const Color(0xFFDCF0DA)
+                      : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: isRecommended
+                      ? Border.all(
+                          color: const Color(0xFF7C6AFA), width: 2)
+                      : Border.all(
+                          color: Colors.grey.shade200, width: 0.5),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: isToday
+                          ? const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFF7C6AFA),
+                            )
                           : null,
-                    ),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 3),
-                        Container(
-                          width: 26,
-                          height: 26,
-                          decoration: isToday
-                              ? const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xFF7C6AFA),
-                                )
-                              : null,
-                          child: Center(
-                            child: Text(
-                              '$day',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isToday
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: isToday
-                                    ? Colors.white
-                                    : isSunday
-                                        ? Colors.red.shade300
-                                        : Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (dayEvents.isNotEmpty)
-                          Expanded(
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 2),
-                              child: Column(
-                                children: dayEvents
-                                    .take(2)
-                                    .map((e) => Container(
-                                          margin:
-                                              const EdgeInsets.only(top: 1),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 2,
-                                            vertical: 1,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: e.color.withOpacity(0.22),
-                                            borderRadius:
-                                                BorderRadius.circular(3),
-                                          ),
-                                          child: Text(
-                                            e.title,
-                                            style: TextStyle(
-                                              fontSize: 8,
-                                              color: e.color,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ))
-                                    .toList(),
-                              ),
-                            ),
-                          )
-                        else
-                          const Spacer(),
-                      ],
-                    ),
-                  ),
-                  if (isRecommended)
-                    Positioned(
-                      bottom: -38,
-                      left: -28,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.add,
-                                  size: 12, color: Color(0xFF7C6AFA)),
-                              SizedBox(width: 4),
-                              Text(
-                                '이 날짜는 어떠세요?',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ],
+                      child: Center(
+                        child: Text(
+                          '$day',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isToday
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isToday
+                                ? Colors.white
+                                : isSunday
+                                    ? Colors.red.shade300
+                                    : Colors.black87,
                           ),
                         ),
                       ),
                     ),
-                ],
+                    if (dayEvents.isNotEmpty)
+                      Expanded(
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 2),
+                          child: Column(
+                            children: dayEvents
+                                .take(2)
+                                .map((e) => Container(
+                                      margin: const EdgeInsets.only(
+                                          top: 1),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 2, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            e.color.withOpacity(0.22),
+                                        borderRadius:
+                                            BorderRadius.circular(3),
+                                      ),
+                                      child: Text(
+                                        e.title,
+                                        style: TextStyle(
+                                          fontSize: 7,
+                                          color: e.color,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ))
+                                .toList(),
+                          ),
+                        ),
+                      )
+                    else
+                      const Spacer(),
+                  ],
+                ),
               ),
             );
           },
@@ -631,6 +665,8 @@ class _MergeCalendarGrid extends StatelessWidget {
     );
   }
 }
+
+// ── 범례 점 ────────────────────────────────────────────────────────────────────
 
 class _LegendDot extends StatelessWidget {
   const _LegendDot({
@@ -654,15 +690,15 @@ class _LegendDot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: isOutlined ? const Color(0xFFDCF0DA) : color,
-            border:
-                isOutlined ? Border.all(color: color, width: 1.5) : null,
+            border: isOutlined
+                ? Border.all(color: color, width: 1.5)
+                : null,
           ),
         ),
         const SizedBox(width: 5),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Colors.black87),
-        ),
+        Text(label,
+            style:
+                const TextStyle(fontSize: 12, color: Colors.black87)),
       ],
     );
   }
