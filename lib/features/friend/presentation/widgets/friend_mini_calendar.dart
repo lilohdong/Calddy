@@ -6,10 +6,12 @@ class FriendMiniCalendar extends StatefulWidget {
     super.key,
     required this.events,
     this.onMonthChanged,
+    this.isLoading = false,
   });
 
   final List<FriendCalendarEventEntity> events;
   final void Function(DateTime month)? onMonthChanged;
+  final bool isLoading;
 
   @override
   State<FriendMiniCalendar> createState() => _FriendMiniCalendarState();
@@ -59,7 +61,12 @@ class _FriendMiniCalendarState extends State<FriendMiniCalendar> {
                 setState(() => _current = next);
                 widget.onMonthChanged?.call(next);
               },
-              child: const Icon(Icons.chevron_left, size: 20, color: Colors.grey),
+              // 상위 GestureDetector(다이얼로그 오픈)로 이벤트 전파 차단
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.chevron_left, size: 20, color: Colors.grey),
+              ),
             ),
             Text(
               '${_current.year}년 ${_current.month}월 ▾',
@@ -71,7 +78,11 @@ class _FriendMiniCalendarState extends State<FriendMiniCalendar> {
                 setState(() => _current = next);
                 widget.onMonthChanged?.call(next);
               },
-              child: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+              ),
             ),
           ],
         ),
@@ -92,6 +103,11 @@ class _FriendMiniCalendarState extends State<FriendMiniCalendar> {
           )).toList(),
         ),
         const SizedBox(height: 4),
+        // Stack으로 로딩 오버레이 처리 — GridView가 shrinkWrap이므로
+        // 오버레이는 Positioned 대신 전체 자식 위에 AbsorbPointer로 올림
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -154,6 +170,35 @@ class _FriendMiniCalendarState extends State<FriendMiniCalendar> {
               ],
             );
           },
+        ),
+            // 로딩 중 오버레이 — GridView 위에 반투명 레이어로 표시
+            // Positioned.fill 대신 IgnorePointer+Positioned로 크기 문제 방지
+            if (widget.isLoading)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF7C6AFA),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );

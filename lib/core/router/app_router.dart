@@ -155,7 +155,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'event/create',
-                builder: (_, _) => const EventCreatePage(),
+                builder: (_, s) => EventCreatePage(
+                  extra: s.extra is EventCreateExtra
+                      ? s.extra as EventCreateExtra
+                      : null,
+                ),
               ),
               GoRoute(
                 path: 'event/:eventId',
@@ -263,9 +267,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.aiMidpoint,
-        builder: (_, s) => AiMidpointPage(
-          friendId: s.extra as String?,
-        ),
+        builder: (_, s) {
+          final extra = s.extra;
+          return AiMidpointPage(
+            // 단일 친구(일반 태그) → String
+            // 다중 친구(합쳐보기) → List<String>
+            friendId: extra is String ? extra : null,
+            friendIds: extra is List<String> ? extra : null,
+          );
+        },
       ),
     ],
   );

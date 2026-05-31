@@ -11,12 +11,29 @@ import '../providers/calendar_providers.dart';
 import '../widgets/color_picker_row.dart';
 import '../../../friend/domain/entities/friend_entity.dart';
 import '../../../friend/presentation/providers/friend_providers.dart';
+import '../../../appointment/domain/usecases/create_appointment_use_case.dart';
+import '../../../appointment/presentation/providers/appointment_providers.dart';
+
+// ── 프리필 데이터 (합쳐보기에서 전달) ─────────────────────────────────────────
+class EventCreateExtra {
+  final DateTime? prefilledDate;
+  final List<String> inviteeIds;
+  final List<String> inviteeNicknames;
+
+  const EventCreateExtra({
+    this.prefilledDate,
+    this.inviteeIds = const [],
+    this.inviteeNicknames = const [],
+  });
+}
 
 // ── 알림 모드 ──────────────────────────────────────────────────────────
 enum _AlarmMode { none, thirtyMin, oneHour, oneDay, sameDay9am, custom }
 
 class EventCreatePage extends ConsumerStatefulWidget {
-  const EventCreatePage({super.key});
+  const EventCreatePage({super.key, this.extra});
+
+  final EventCreateExtra? extra;
 
   @override
   ConsumerState<EventCreatePage> createState() => _EventCreatePageState();
@@ -28,10 +45,8 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   final _locationCtrl = TextEditingController();
   final _memoCtrl = TextEditingController();
 
-  DateTime _startAt = DateTime(
-      DateTime.now().year, DateTime.now().month, DateTime.now().day, 9, 0);
-  DateTime _endAt = DateTime(
-      DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59);
+  late DateTime _startAt;
+  late DateTime _endAt;
 
   String _color = '#7C6AFA';
   bool _isLoading = false;
@@ -46,7 +61,34 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   int? _recurrenceWeekday;
   int? _recurrenceMonthDay;
 
-  FriendEntity? _taggedFriend;
+  // 친구 태그 — 합쳐보기 프리필 (다중) + 개별 선택 (단일)
+  List<String> _prefilledIds = [];
+  List<String> _prefilledNames = [];
+  FriendEntity? _taggedFriend; // 개별 선택 친구 (AI 중간지점용)
+
+  /// 약속 초대 대상 IDs (프리필 + 개별 선택 합산, 중복 제거)
+  List<String> get _allInviteeIds {
+    final all = {..._prefilledIds};
+    if (_taggedFriend != null) all.add(_taggedFriend!.friendId);
+    return all.toList();
+  }
+
+  /// 합쳐보기에서 왔는지 여부
+  bool get _isFromMerge => _prefilledIds.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    final extra = widget.extra;
+    final base = extra?.prefilledDate ?? DateTime.now();
+    _startAt = DateTime(base.year, base.month, base.day, 9, 0);
+    _endAt = DateTime(base.year, base.month, base.day, 23, 59);
+
+    if (extra != null) {
+      _prefilledIds = List.from(extra.inviteeIds);
+      _prefilledNames = List.from(extra.inviteeNicknames);
+    }
+  }
 
   @override
   void dispose() {
@@ -94,35 +136,78 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
         recurrenceDays = [_recurrenceMonthDay ?? _startAt.day];
       }
 
-      await ref.read(createEventUseCaseProvider).call(
-            CreateEventParams(
-              event: EventEntity(
-                id: '',
-                userId: currentUserId,
-                title: _titleCtrl.text.trim(),
-                location: _locationCtrl.text.trim().isEmpty
-                    ? null
-                    : _locationCtrl.text.trim(),
-                startAt: _startAt,
-                endAt: _endAt,
-                color: _color,
-                isDday: _isDday,
-                memo: _memoCtrl.text.trim().isEmpty
-                    ? null
-                    : _memoCtrl.text.trim(),
-                notifyBeforeMin: _computeNotifyBeforeMin(),
-                status: EventStatus.pending,
-                visibility: EventVisibility.public,
-                createdAt: now,
-                recurrenceType: _recurrenceType,
-                recurrenceDays: recurrenceDays,
+      // 1. 이벤트 생성 — 반환된 entity에 DB 할당 id가 들어 있음
+      final createdEvent =
+          await ref.read(createEventUseCaseProvider).call(
+                CreateEventParams(
+                  event: EventEntity(
+                    id: '',
+                    userId: currentUserId,
+                    title: _titleCtrl.text.trim(),
+                    location: _locationCtrl.text.trim().isEmpty
+                        ? null
+                        : _locationCtrl.text.trim(),
+                    startAt: _startAt,
+                    endAt: _endAt,
+                    color: _color,
+                    isDday: _isDday,
+                    memo: _memoCtrl.text.trim().isEmpty
+                        ? null
+                        : _memoCtrl.text.trim(),
+                    notifyBeforeMin: _computeNotifyBeforeMin(),
+                    status: EventStatus.pending,
+                    visibility: EventVisibility.public,
+                    createdAt: now,
+                    recurrenceType: _recurrenceType,
+                    recurrenceDays: recurrenceDays,
+                  ),
+                ),
+              );
+
+      // 2. 초대할 친구가 있으면 약속(Appointment) 자동 생성
+      final inviteeIds = _allInviteeIds;
+      if (inviteeIds.isNotEmpty) {
+        await ref.read(createAppointmentUseCaseProvider).call(
+              CreateAppointmentParams(
+                eventId: createdEvent.id,
+                inviteeIds: inviteeIds,
               ),
+            );
+      }
+
+      ref.invalidate(calendarDataProvider);
+
+      if (mounted) {
+        if (inviteeIds.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  const Text('일정 생성 & 초대장을 보냈어요! 🎉'),
+                ],
+              ),
+              backgroundColor: const Color(0xFF7C6AFA),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 3),
             ),
           );
-      ref.invalidate(calendarDataProvider);
-      if (mounted) context.pop();
+        }
+        context.pop();
+      }
     } on CalendarFailure catch (e) {
       _showError(e.message);
+    } on AppointmentFailure catch (e) {
+      // 이벤트는 생성됐으므로 캘린더 갱신 + 페이지 닫기는 수행
+      ref.invalidate(calendarDataProvider);
+      if (mounted) {
+        context.pop();
+        _showError('일정은 만들었지만 초대 전송에 실패했어요: ${e.message}');
+      }
     } catch (_) {
       _showError('일정을 만드는 데 실패했습니다.');
     } finally {
@@ -246,6 +331,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => _FriendPickerSheet(
+        excludeIds: _prefilledIds,
         onSelected: (friend) {
           setState(() => _taggedFriend = friend);
           Navigator.of(context).pop();
@@ -304,9 +390,11 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
           icon: const Icon(Icons.close, color: Colors.black87),
           onPressed: () => context.pop(),
         ),
-        title: const Text('일정 추가',
-            style: TextStyle(
-                color: Colors.black87, fontWeight: FontWeight.w600)),
+        title: Text(
+          _isFromMerge ? '공동 일정 추가' : '일정 추가',
+          style: const TextStyle(
+              color: Colors.black87, fontWeight: FontWeight.w600),
+        ),
         centerTitle: true,
         actions: [
           TextButton(
@@ -316,8 +404,9 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('저장',
-                    style: TextStyle(
+                : Text(
+                    _isFromMerge ? '저장 & 초대' : '저장',
+                    style: const TextStyle(
                         color: Color(0xFF7C6AFA),
                         fontWeight: FontWeight.w600)),
           ),
@@ -328,6 +417,12 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           children: [
+            // 합쳐보기에서 왔을 때: 배너
+            if (_isFromMerge) ...[
+              _MergeBanner(names: _prefilledNames),
+              const SizedBox(height: 12),
+            ],
+
             // 제목
             TextFormField(
               controller: _titleCtrl,
@@ -353,7 +448,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
             ),
             const SizedBox(height: 16),
 
-            // 시작/종료 (날짜만)
+            // 시작/종료 날짜
             _SettingCard(
               icon: Icons.calendar_today_outlined,
               child: Column(
@@ -394,12 +489,18 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                       ),
                     ),
                   ),
-                  if (_taggedFriend != null)
+                  // AI 중간지점 버튼
+                  // - 합쳐보기 모드: 프리필 친구 IDs 전달
+                  // - 일반 모드: 단일 태그 친구 있을 때만
+                  if (_isFromMerge || _taggedFriend != null)
                     TextButton(
                       onPressed: () async {
+                        final extra = _isFromMerge
+                            ? _prefilledIds          // List<String>
+                            : _taggedFriend!.friendId; // String
                         final result = await context.push<String>(
                           AppRoutes.aiMidpoint,
-                          extra: _taggedFriend!.friendId,
+                          extra: extra,
                         );
                         if (result != null && mounted) {
                           setState(() => _locationCtrl.text = result);
@@ -421,46 +522,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
             const SizedBox(height: 8),
 
             // 친구 태그
-            _SettingCard(
-              icon: Icons.person_add_alt_outlined,
-              onTap: _showFriendPicker,
-              child: _taggedFriend == null
-                  ? const Text('친구를 태그하세요',
-                      style: TextStyle(fontSize: 14, color: Colors.grey))
-                  : Row(
-                      children: [
-                        if (_taggedFriend!.friendProfile.avatarUrl != null)
-                          CircleAvatar(
-                            radius: 12,
-                            backgroundImage: NetworkImage(
-                                _taggedFriend!.friendProfile.avatarUrl!),
-                          )
-                        else
-                          CircleAvatar(
-                            radius: 12,
-                            backgroundColor: const Color(0xFF7C6AFA)
-                                .withValues(alpha: 0.2),
-                            child: Text(
-                              (_taggedFriend!.friendProfile.nickname ?? '?')[0],
-                              style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Color(0xFF7C6AFA),
-                                  fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        const SizedBox(width: 8),
-                        Text(_taggedFriend!.friendProfile.nickname ?? '',
-                            style: const TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w500)),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () => setState(() => _taggedFriend = null),
-                          child: const Icon(Icons.close,
-                              size: 16, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-            ),
+            _buildFriendSection(),
             const SizedBox(height: 8),
 
             // 알림
@@ -531,6 +593,205 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
             const SizedBox(height: 40),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── 친구 태그 섹션 빌더 ────────────────────────────────────────────
+  Widget _buildFriendSection() {
+    // 합쳐보기에서 왔을 때: 프리필 친구들 칩 + 추가 친구 선택 가능
+    if (_isFromMerge) {
+      return _SettingCard(
+        icon: Icons.people_outline,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 프리필 친구 칩들 (삭제 가능)
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                ..._prefilledNames.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final name = entry.value;
+                  return _FriendChip(
+                    name: name,
+                    onRemove: () {
+                      setState(() {
+                        _prefilledIds.removeAt(idx);
+                        _prefilledNames.removeAt(idx);
+                      });
+                    },
+                  );
+                }),
+                // 개별 선택 친구 (추가)
+                if (_taggedFriend != null)
+                  _FriendChip(
+                    name: _taggedFriend!.friendProfile.nickname ?? '?',
+                    onRemove: () => setState(() => _taggedFriend = null),
+                  ),
+                // 친구 추가 버튼
+                GestureDetector(
+                  onTap: _showFriendPicker,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.grey.shade300, width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add,
+                            size: 14, color: Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                        Text('추가',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 일반 모드: 기존 단일 친구 선택
+    return _SettingCard(
+      icon: Icons.person_add_alt_outlined,
+      onTap: _taggedFriend == null ? _showFriendPicker : null,
+      child: _taggedFriend == null
+          ? const Text('친구를 태그하세요',
+              style: TextStyle(fontSize: 14, color: Colors.grey))
+          : Row(
+              children: [
+                if (_taggedFriend!.friendProfile.avatarUrl != null)
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundImage: NetworkImage(
+                        _taggedFriend!.friendProfile.avatarUrl!),
+                  )
+                else
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: const Color(0xFF7C6AFA)
+                        .withValues(alpha: 0.2),
+                    child: Text(
+                      (_taggedFriend!.friendProfile.nickname ?? '?')[0],
+                      style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF7C6AFA),
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                Text(_taggedFriend!.friendProfile.nickname ?? '',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w500)),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => setState(() => _taggedFriend = null),
+                  child: const Icon(Icons.close,
+                      size: 16, color: Colors.grey),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+// ── 합쳐보기 배너 ─────────────────────────────────────────────────────────────
+
+class _MergeBanner extends StatelessWidget {
+  const _MergeBanner({required this.names});
+  final List<String> names;
+
+  @override
+  Widget build(BuildContext context) {
+    final nameText = names.join(', ');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7C6AFA), Color(0xFF9B8FFF)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.people_alt_rounded, color: Colors.white, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$nameText 와(과) 함께하는 일정',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  '저장하면 초대장이 자동 발송돼요 ✉️',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 친구 칩 (프리필 다중 태그용) ───────────────────────────────────────────────
+
+class _FriendChip extends StatelessWidget {
+  const _FriendChip({required this.name, required this.onRemove});
+  final String name;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEDE9FF),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF5B50D6),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: onRemove,
+            child: const Icon(Icons.close,
+                size: 14, color: Color(0xFF9B8FFF)),
+          ),
+        ],
       ),
     );
   }
@@ -704,7 +965,6 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
               const Text('반복 설정',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              // 반복 유형 선택
               Wrap(
                 spacing: 8,
                 children: [
@@ -729,7 +989,6 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
                           setState(() => _type = RecurrenceType.monthly)),
                 ],
               ),
-              // 매주: 요일 선택
               if (_type == RecurrenceType.weekly) ...[
                 const SizedBox(height: 16),
                 const Text('요일 선택',
@@ -738,7 +997,7 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: List.generate(7, (i) {
-                    final wd = i + 1; // 1=Mon..7=Sun
+                    final wd = i + 1;
                     const names = ['월', '화', '수', '목', '금', '토', '일'];
                     final isSelected = _weekday == wd;
                     return GestureDetector(
@@ -770,7 +1029,6 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
                   }),
                 ),
               ],
-              // 매월: 날짜 선택
               if (_type == RecurrenceType.monthly) ...[
                 const SizedBox(height: 16),
                 const Text('날짜 선택',
@@ -878,8 +1136,12 @@ class _TypeChip extends StatelessWidget {
 // ── 친구 선택 바텀시트 ──────────────────────────────────────────────
 
 class _FriendPickerSheet extends ConsumerWidget {
-  const _FriendPickerSheet({required this.onSelected});
+  const _FriendPickerSheet({
+    required this.onSelected,
+    this.excludeIds = const [],
+  });
   final ValueChanged<FriendEntity> onSelected;
+  final List<String> excludeIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -913,7 +1175,9 @@ class _FriendPickerSheet extends ConsumerWidget {
               error: (e, s) =>
                   const Center(child: Text('친구 목록을 불러오지 못했어요')),
               data: (friends) {
-                if (friends.isEmpty) {
+                final available =
+                    friends.where((f) => !excludeIds.contains(f.friendId)).toList();
+                if (available.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -921,7 +1185,7 @@ class _FriendPickerSheet extends ConsumerWidget {
                         Icon(Icons.people_outline,
                             size: 48, color: Colors.grey.shade300),
                         const SizedBox(height: 8),
-                        Text('아직 친구가 없어요',
+                        Text('추가할 수 있는 친구가 없어요',
                             style: TextStyle(color: Colors.grey.shade400)),
                       ],
                     ),
@@ -931,10 +1195,11 @@ class _FriendPickerSheet extends ConsumerWidget {
                   controller: scrollCtrl,
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 8),
-                  itemCount: friends.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final f = friends[i];
+                  itemCount: available.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final f = available[i];
                     return ListTile(
                       leading: f.friendProfile.avatarUrl != null
                           ? CircleAvatar(

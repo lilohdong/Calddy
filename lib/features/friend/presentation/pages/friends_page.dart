@@ -174,6 +174,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                       return FriendCard(
                         friend: f,
                         isExpanded: _expandedFriendId == f.friendId,
+                        rank: i, // 0=1위, 1=2위, 2=3위, 3이상=멘트 없음
                         onToggle: () => setState(() {
                           _expandedFriendId =
                               _expandedFriendId == f.friendId

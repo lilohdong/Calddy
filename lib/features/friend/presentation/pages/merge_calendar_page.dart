@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/error/failures.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../calendar/presentation/pages/event_create_page.dart';
 import '../../domain/entities/friend_calendar_event_entity.dart';
 import '../../domain/entities/friend_entity.dart';
 import '../../domain/usecases/get_friend_calendar_use_case.dart';
@@ -74,6 +75,35 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // ── 빈 날 탭 → 확인 바텀시트 ──────────────────────────────────────
+  void _showConfirmSheet(DateTime date, List<FriendEntity> selectedFriends) {
+    if (selectedFriends.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _FreeSlotConfirmSheet(
+        date: date,
+        friends: selectedFriends,
+        onConfirm: () {
+          Navigator.of(context).pop(); // 바텀시트 닫기
+          context.push(
+            AppRoutes.eventCreate,
+            extra: EventCreateExtra(
+              prefilledDate: date,
+              inviteeIds:
+                  selectedFriends.map((f) => f.friendId).toList(),
+              inviteeNicknames: selectedFriends
+                  .map((f) => f.friendProfile.nickname ?? '?')
+                  .toList(),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   // 빈 날짜 = 나 + 선택된 친구 모두 이벤트 없는 날
@@ -344,8 +374,16 @@ class _MergeCalendarPageState extends ConsumerState<MergeCalendarPage> {
                                               [],
                                         ))
                                     .toList(),
-                                onSelectDay: (d) => setState(
-                                    () => _recommendedDay = d),
+                                onSelectDay: (day) {
+                                  setState(() => _recommendedDay = day);
+                                  final selectedDate = DateTime(
+                                      _current.year, _current.month, day);
+                                  final selected = friends
+                                      .where((f) => _selectedIds
+                                          .contains(f.friendId))
+                                      .toList();
+                                  _showConfirmSheet(selectedDate, selected);
+                                },
                                 onDismissTooltip: () => setState(
                                     () => _tooltipDismissed = true),
                               ),
@@ -644,6 +682,236 @@ class _MergeCalendarGrid extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+// ── 빈 날 확인 바텀시트 ───────────────────────────────────────────────────────
+
+class _FreeSlotConfirmSheet extends StatelessWidget {
+  const _FreeSlotConfirmSheet({
+    required this.date,
+    required this.friends,
+    required this.onConfirm,
+  });
+
+  final DateTime date;
+  final List<FriendEntity> friends;
+  final VoidCallback onConfirm;
+
+  static const _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+  static const _palette = [
+    Color(0xFF7C6AFA),
+    Color(0xFF5BB5E8),
+    Color(0xFF6EC6B8),
+    Color(0xFFF5A623),
+    Color(0xFFF07DB3),
+  ];
+
+  Color _avatarColor(int i) => _palette[i % _palette.length];
+
+  String get _dateLabel {
+    final wd = _weekdays[date.weekday - 1];
+    return '${date.month}월 ${date.day}일 ($wd)';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 드래그 핸들
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 날짜 뱃지
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF7C6AFA), Color(0xFF9B8FFF)],
+              ),
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.calendar_month_rounded,
+                    color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  _dateLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // 친구 아바타 목록
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: friends.asMap().entries.map((e) {
+              final idx = e.key;
+              final f = e.value;
+              final name = f.friendProfile.nickname ?? '?';
+              final color = _avatarColor(idx);
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: color.withValues(alpha: 0.18),
+                        border: Border.all(color: color, width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : '?',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      name.length > 5 ? '${name.substring(0, 5)}…' : name,
+                      style: const TextStyle(
+                          fontSize: 11, color: Colors.black87),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+
+          // 안내 문구
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              '이 날 함께 일정을 만들까요?',
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // 설명
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0EEFF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded,
+                    size: 16, color: Color(0xFF7C6AFA)),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    '친구가 수락하면 각자의 캘린더에 자동 추가돼요',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF5B50D6),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 버튼 영역
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      side: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    child: Text(
+                      '취소',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: onConfirm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7C6AFA),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.edit_calendar_outlined, size: 18),
+                        SizedBox(width: 6),
+                        Text(
+                          '일정 만들기',
+                          style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 }
