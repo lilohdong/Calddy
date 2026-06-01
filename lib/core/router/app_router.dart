@@ -23,6 +23,7 @@ import '../../features/feed/presentation/pages/post_detail_page.dart';
 import '../../features/feed/presentation/pages/post_edit_page.dart';
 import '../../features/feed/domain/entities/post_entity.dart';
 import '../../features/friend/presentation/pages/friend_calendar_page.dart';
+import '../../features/friend/presentation/pages/friend_search_page.dart';
 import '../../features/friend/presentation/pages/friends_page.dart';
 import '../../features/friend/presentation/pages/merge_calendar_page.dart';
 import '../../features/map/presentation/pages/place_picker_page.dart';
@@ -154,7 +155,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'event/create',
-                builder: (_, _) => const EventCreatePage(),
+                builder: (_, s) => EventCreatePage(
+                  extra: s.extra is EventCreateExtra
+                      ? s.extra as EventCreateExtra
+                      : null,
+                ),
               ),
               GoRoute(
                 path: 'event/:eventId',
@@ -217,14 +222,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, _) => const FriendsPage(),
             routes: [
               GoRoute(
-                path: ':friendId/calendar',
-                builder: (_, s) => FriendCalendarPage(
-                  friendId: s.pathParameters['friendId']!,
-                ),
+                path: 'search',
+                builder: (_, _) => const FriendSearchPage(),
               ),
               GoRoute(
-                path: ':friendId/merge',
-                builder: (_, s) => MergeCalendarPage(
+                path: 'merge',
+                builder: (_, _) => const MergeCalendarPage(),
+              ),
+              GoRoute(
+                path: ':friendId/calendar',
+                builder: (_, s) => FriendCalendarPage(
                   friendId: s.pathParameters['friendId']!,
                 ),
               ),
@@ -260,9 +267,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.aiMidpoint,
-        builder: (_, s) => AiMidpointPage(
-          friendId: s.extra as String?,
-        ),
+        builder: (_, s) {
+          final extra = s.extra;
+          return AiMidpointPage(
+            // 단일 친구(일반 태그) → String
+            // 다중 친구(합쳐보기) → List<String>
+            friendId: extra is String ? extra : null,
+            friendIds: extra is List<String> ? extra : null,
+          );
+        },
       ),
     ],
   );

@@ -6,8 +6,17 @@ import '../../../friend/domain/entities/friend_entity.dart';
 import '../../../friend/presentation/providers/friend_providers.dart';
 
 class AiMidpointPage extends ConsumerStatefulWidget {
-  const AiMidpointPage({super.key, this.friendId});
+  const AiMidpointPage({
+    super.key,
+    this.friendId,
+    this.friendIds,
+  });
+
+  /// 일반 태그: 단일 친구 ID
   final String? friendId;
+
+  /// 합쳐보기: 다중 친구 ID 목록
+  final List<String>? friendIds;
 
   @override
   ConsumerState<AiMidpointPage> createState() => _AiMidpointPageState();
@@ -20,6 +29,10 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
   String _calcBasis = '대중교통 최적화';
   int _selectedIndex = 0;
 
+  /// 다중 친구 모드 여부
+  bool get _isMulti =>
+      widget.friendIds != null && widget.friendIds!.isNotEmpty;
+
   static const _calcOptions = ['대중교통 최적화', '직선 거리', '도보 최적화'];
 
   static const _mockPlaces = [
@@ -30,16 +43,32 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
 
   @override
   Widget build(BuildContext context) {
-    final friendsAsync = widget.friendId != null
+    final allIds = _isMulti
+        ? widget.friendIds!
+        : (widget.friendId != null ? [widget.friendId!] : <String>[]);
+
+    final friendsAsync = allIds.isNotEmpty
         ? ref.watch(friendsProvider(FriendSortType.alphabetical))
         : const AsyncValue<List<FriendEntity>>.data([]);
 
-    final FriendEntity? taggedFriend = friendsAsync.maybeWhen(
-      data: (list) => list
-          .where((f) => f.friendId == widget.friendId)
-          .firstOrNull,
-      orElse: () => null,
-    );
+    // 단일 친구 (기존 호환)
+    final FriendEntity? taggedFriend = _isMulti
+        ? null
+        : friendsAsync.maybeWhen(
+            data: (list) => list
+                .where((f) => f.friendId == widget.friendId)
+                .firstOrNull,
+            orElse: () => null,
+          );
+
+    // 다중 친구 목록
+    final List<FriendEntity> taggedFriends = _isMulti
+        ? friendsAsync.maybeWhen(
+            data: (list) =>
+                list.where((f) => allIds.contains(f.friendId)).toList(),
+            orElse: () => [],
+          )
+        : [];
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -91,7 +120,9 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
         ],
       ),
       body: _step == 0
-          ? _buildWaitingStep(taggedFriend)
+          ? (_isMulti
+              ? _buildWaitingStepMulti(taggedFriends)
+              : _buildWaitingStep(taggedFriend))
           : _buildResultStep(),
     );
   }
@@ -307,6 +338,253 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
             child: Text('취소하기',
                 style: TextStyle(
                     color: Colors.grey.shade400, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Step 0 (다중 친구): 대기 화면 ────────────────────────────────────
+  static const _multiAvatarColors = [
+    Color(0xFF7C6AFA),
+    Color(0xFF5BB5E8),
+    Color(0xFF6EC6B8),
+    Color(0xFFF5A623),
+    Color(0xFFF07DB3),
+  ];
+
+  Widget _buildWaitingStepMulti(List<FriendEntity> friends) {
+    final names = friends.isEmpty
+        ? '친구들'
+        : friends.map((f) => f.friendProfile.nickname ?? '?').join(', ');
+
+    const avatarColors = _multiAvatarColors;
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(height: 24),
+
+          // 다중 친구 아바타 행
+          if (friends.isNotEmpty)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: friends.asMap().entries.map((entry) {
+                final i = entry.key;
+                final f = entry.value;
+                final name = f.friendProfile.nickname ?? '?';
+                final color = avatarColors[i % avatarColors.length];
+                final avatar = f.friendProfile.avatarUrl;
+                return Transform.translate(
+                  offset: Offset(i * -10.0, 0),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.withValues(alpha: 0.25),
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: CircleAvatar(
+                      radius: 26,
+                      backgroundColor: color.withValues(alpha: 0.3),
+                      backgroundImage:
+                          avatar != null ? NetworkImage(avatar) : null,
+                      child: avatar == null
+                          ? Text(
+                              name[0],
+                              style: TextStyle(
+                                fontSize: 20,
+                                color: color,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                );
+              }).toList(),
+            )
+          else
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF7C6AFA).withValues(alpha: 0.15),
+              ),
+              child: const Icon(Icons.people_alt_rounded,
+                  size: 36, color: Color(0xFF7C6AFA)),
+            ),
+
+          const SizedBox(height: 20),
+          Text(
+            '$names님에게\n출발 장소 설정을 요청했어요',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '모두 설정하면 중간지점을 계산할게요',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 28),
+
+          // 내 출발지
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F7FB),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: Color(0xFF7C6AFA),
+                      child: Text('나',
+                          style:
+                              TextStyle(fontSize: 10, color: Colors.white)),
+                    ),
+                    SizedBox(width: 8),
+                    Text('내 출발 장소',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  onChanged: (v) => setState(() => _myLocation = v),
+                  decoration: InputDecoration(
+                    hintText: '출발 장소를 입력하세요 (예: 강남역)',
+                    hintStyle: TextStyle(
+                        color: Colors.grey.shade400, fontSize: 13),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide:
+                          BorderSide(color: Colors.grey.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide:
+                          BorderSide(color: Colors.grey.shade200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: Color(0xFF7C6AFA)),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    prefixIcon: const Icon(Icons.location_on_outlined,
+                        size: 18, color: Color(0xFF7C6AFA)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // 친구들 대기 상태
+          ...friends.asMap().entries.map((entry) {
+            final i = entry.key;
+            final f = entry.value;
+            final name = f.friendProfile.nickname ?? '?';
+            final color = avatarColors[i % avatarColors.length];
+            final avatar = f.friendProfile.avatarUrl;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F7FB),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundColor: color.withValues(alpha: 0.25),
+                    backgroundImage:
+                        avatar != null ? NetworkImage(avatar) : null,
+                    child: avatar == null
+                        ? Text(name[0],
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: color,
+                                fontWeight: FontWeight.bold))
+                        : null,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('$name님의 출발 장소',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13)),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 11,
+                              height: 11,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text('설정 기다리는 중...',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade400)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+          const Spacer(),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _myLocation.trim().isEmpty
+                  ? null
+                  : () => setState(() => _step = 1),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7C6AFA),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade200,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text('중간지점 계산하기',
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => context.pop(),
+            child: Text('취소하기',
+                style:
+                    TextStyle(color: Colors.grey.shade400, fontSize: 13)),
           ),
         ],
       ),
