@@ -165,65 +165,58 @@ class CalendarGridWidget extends StatelessWidget {
             );
           }).toList(),
         ),
-        const SizedBox(height: 2),
-        // 그리드 — 연회색 배경 + 셀 gap으로 자연스러운 구분선 구현
+        const SizedBox(height: 4),
+        // 그리드
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              const gap = 1.5;
               final cellWidth = constraints.maxWidth / 7;
               final cellHeight = constraints.maxHeight / weeks.length;
 
-              return Container(
-                color: const Color(0xFFE0E0E0),
-                child: Column(
-                  children: weeks.map((weekDays) {
-                    return SizedBox(
-                      height: cellHeight,
-                      child: Stack(
-                        clipBehavior: Clip.hardEdge,
-                        children: [
-                          Row(
-                            children: weekDays.map((day) {
-                              final isCurrent = day.month == month;
-                              final isToday = day.isSameDay(today);
-                              final isSelected = day.isSameDay(selectedDay);
-                              final key = day.toDateString();
-                              final holiday = holidayByDate[key];
-                              return SizedBox(
-                                width: cellWidth,
-                                height: cellHeight,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(gap),
-                                  child: CalendarDayCell(
-                                    date: day,
-                                    isCurrentMonth: isCurrent,
-                                    isSelected: isSelected,
-                                    isToday: isToday,
-                                    events: isCurrent
-                                        ? (eventsByDate[key] ?? const [])
-                                        : const [],
-                                    isHoliday: holiday != null,
-                                    holidayName: holiday?.name,
-                                    onTap: () => onDaySelected(day),
-                                    drawingThumbnailUrl:
-                                        isCurrent ? _thumbnailForDay(day) : null,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                          ..._buildRangeBarsForWeek(
-                            weekDays,
-                            [...data.ranges, ...multiDayEvents],
-                            cellWidth,
-                            cellHeight,
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
+              return Column(
+                children: weeks.map((weekDays) {
+                  return SizedBox(
+                    height: cellHeight,
+                    child: Stack(
+                      clipBehavior: Clip.hardEdge,
+                      children: [
+                        Row(
+                          children: weekDays.map((day) {
+                            final isCurrent = day.month == month;
+                            final isToday = day.isSameDay(today);
+                            final isSelected = day.isSameDay(selectedDay);
+                            final key = day.toDateString();
+                            final holiday = holidayByDate[key];
+                            return SizedBox(
+                              width: cellWidth,
+                              height: cellHeight,
+                              child: CalendarDayCell(
+                                date: day,
+                                isCurrentMonth: isCurrent,
+                                isSelected: isSelected,
+                                isToday: isToday,
+                                events: isCurrent
+                                    ? (eventsByDate[key] ?? const [])
+                                    : const [],
+                                isHoliday: holiday != null,
+                                holidayName: holiday?.name,
+                                onTap: () => onDaySelected(day),
+                                drawingThumbnailUrl:
+                                    isCurrent ? _thumbnailForDay(day) : null,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        ..._buildRangeBarsForWeek(
+                          weekDays,
+                          [...data.ranges, ...multiDayEvents],
+                          cellWidth,
+                          cellHeight,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
               );
             },
           ),

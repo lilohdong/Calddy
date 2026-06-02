@@ -46,13 +46,10 @@ class CalendarDayCell extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFEEEEEE), width: 0.5),
           color: isSelected
-              ? const Color(0xFF7C6AFA).withValues(alpha: 0.10)
+              ? const Color(0xFF7C6AFA).withValues(alpha: 0.08)
               : Colors.white,
-          border: isSelected
-              ? Border.all(color: const Color(0xFF7C6AFA).withValues(alpha: 0.3), width: 1)
-              : null,
           image: drawingThumbnailUrl != null
               ? DecorationImage(
                   image: NetworkImage(drawingThumbnailUrl!),
@@ -71,12 +68,12 @@ class CalendarDayCell extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    width: 22,
-                    height: 22,
+                    width: 20,
+                    height: 20,
                     decoration: isToday
-                        ? BoxDecoration(
-                            color: const Color(0xFF7C6AFA),
-                            borderRadius: BorderRadius.circular(6),
+                        ? const BoxDecoration(
+                            color: Color(0xFF7C6AFA),
+                            shape: BoxShape.circle,
                           )
                         : null,
                     alignment: Alignment.center,
