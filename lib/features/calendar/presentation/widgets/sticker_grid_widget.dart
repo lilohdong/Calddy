@@ -28,8 +28,14 @@ class StickerGridWidget extends StatelessWidget {
             color: Colors.grey.shade100,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Center(
-            child: Text(kStickers[i], style: const TextStyle(fontSize: 22)),
+          alignment: Alignment.center,
+          child: Text(
+            kStickers[i],
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              height: 1.2,
+            ),
           ),
         ),
       ),

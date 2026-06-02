@@ -51,10 +51,12 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
 
   // 장소
   String _locationText = '';
+  final _locationCtrl = TextEditingController();
 
   @override
   void dispose() {
     _titleCtrl.dispose();
+    _locationCtrl.dispose();
     super.dispose();
   }
 
@@ -351,16 +353,20 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
           // 장소
           _RowTile(
             icon: Icons.location_on_outlined,
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 16),
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    _locationText.isEmpty ? '장소 설정' : _locationText,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _locationText.isEmpty ? Colors.grey : Colors.black87,
+                  child: TextField(
+                    controller: _locationCtrl,
+                    onChanged: (v) => setState(() => _locationText = v),
+                    decoration: const InputDecoration(
+                      hintText: '장소를 입력하세요',
+                      hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
                     ),
+                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
                 if (_taggedFriend != null)
@@ -371,7 +377,10 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                         extra: _taggedFriend!.friendId,
                       );
                       if (result != null && mounted) {
-                        setState(() => _locationText = result);
+                        setState(() {
+                          _locationText = result;
+                          _locationCtrl.text = result;
+                        });
                       }
                     },
                     style: TextButton.styleFrom(

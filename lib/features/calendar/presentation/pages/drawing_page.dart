@@ -10,6 +10,7 @@ import '../../../../core/error/failures.dart';
 import '../../domain/entities/drawing_entity.dart';
 import '../../domain/usecases/save_drawing_usecase.dart';
 import '../providers/calendar_providers.dart';
+import '../widgets/color_picker_row.dart';
 import '../widgets/sticker_grid_widget.dart';
 
 class DrawingPage extends ConsumerStatefulWidget {
@@ -234,43 +235,35 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
                     Positioned(
                       top: 20,
                       left: 20,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
                             '${_date.day}',
                             style: TextStyle(
-                              fontSize: 48,
+                              fontSize: 52,
                               fontWeight: FontWeight.bold,
+                              height: 1,
                               color: isDark
-                                  ? Colors.white.withValues(alpha: 0.7)
+                                  ? Colors.white.withValues(alpha: 0.85)
                                   : const Color(0xFF7C6AFA),
                             ),
                           ),
-                          Text(
-                            '${weekdays[_date.weekday % 7]}요일',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.5)
-                                  : Colors.grey,
+                          const SizedBox(width: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              '${weekdays[_date.weekday % 7]}요일',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.55)
+                                    : Colors.grey.shade500,
+                              ),
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    // 동기부여 문구
-                    Positioned(
-                      bottom: 16,
-                      right: 16,
-                      child: Text(
-                        '오늘도 화이팅!',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.4)
-                              : Colors.grey.shade400,
-                        ),
                       ),
                     ),
                     // 배치된 스티커
@@ -311,6 +304,15 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
             bgColors: _bgColors,
             selectedBg: _bgColor,
             onBgChanged: (c) => setState(() => _bgColor = c),
+            onBgColorCustom: () async {
+              final picked = await showDialog<String?>(
+                context: context,
+                builder: (_) => const CustomColorDialog(),
+              );
+              if (picked != null && mounted) {
+                setState(() => _bgColor = ColorPickerRow.fromHex(picked));
+              }
+            },
             handwritingMode: _handwritingMode,
             onHandwritingToggle: (v) => setState(() {
               _handwritingMode = v;
@@ -348,6 +350,7 @@ class _BottomToolPanel extends StatelessWidget {
     required this.bgColors,
     required this.selectedBg,
     required this.onBgChanged,
+    required this.onBgColorCustom,
     required this.handwritingMode,
     required this.onHandwritingToggle,
     required this.showStickerPanel,
@@ -358,6 +361,7 @@ class _BottomToolPanel extends StatelessWidget {
   final List<Color> bgColors;
   final Color selectedBg;
   final ValueChanged<Color> onBgChanged;
+  final VoidCallback onBgColorCustom;
   final bool handwritingMode;
   final ValueChanged<bool> onHandwritingToggle;
   final bool showStickerPanel;
@@ -408,27 +412,41 @@ class _BottomToolPanel extends StatelessWidget {
                         color: Colors.black87)),
                 const SizedBox(height: 8),
                 Row(
-                  children: bgColors
-                      .map((c) => GestureDetector(
-                            onTap: () => onBgChanged(c),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              width: 36,
-                              height: 36,
-                              margin: const EdgeInsets.only(right: 10),
-                              decoration: BoxDecoration(
-                                color: c,
-                                borderRadius: BorderRadius.circular(8),
-                                border: selectedBg == c
-                                    ? Border.all(
-                                        color: const Color(0xFF7C6AFA),
-                                        width: 2)
-                                    : Border.all(
-                                        color: Colors.grey.shade200),
-                              ),
+                  children: [
+                    ...bgColors.map((c) => GestureDetector(
+                          onTap: () => onBgChanged(c),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            width: 36,
+                            height: 36,
+                            margin: const EdgeInsets.only(right: 10),
+                            decoration: BoxDecoration(
+                              color: c,
+                              borderRadius: BorderRadius.circular(8),
+                              border: selectedBg == c
+                                  ? Border.all(
+                                      color: const Color(0xFF7C6AFA),
+                                      width: 2)
+                                  : Border.all(
+                                      color: Colors.grey.shade200),
                             ),
-                          ))
-                      .toList(),
+                          ),
+                        )),
+                    // + 커스텀 컬러
+                    GestureDetector(
+                      onTap: onBgColorCustom,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: const Icon(Icons.add,
+                            size: 18, color: Colors.grey),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

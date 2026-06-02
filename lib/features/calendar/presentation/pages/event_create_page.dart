@@ -844,12 +844,9 @@ class _SettingCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Icon(icon, size: 18, color: Colors.grey.shade600),
-            ),
+            Icon(icon, size: 18, color: Colors.grey.shade600),
             const SizedBox(width: 12),
             Expanded(child: child),
             if (onTap != null) ...[

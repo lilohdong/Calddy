@@ -83,7 +83,7 @@ class ColorPickerRow extends StatelessWidget {
             onTap: () async {
               final picked = await showDialog<String?>(
                 context: ctx,
-                builder: (_) => const _CustomColorDialog(),
+                builder: (_) => const CustomColorDialog(),
               );
               if (picked != null) {
                 _addRecentColor(picked);
@@ -106,13 +106,14 @@ class ColorPickerRow extends StatelessWidget {
   }
 }
 
-class _CustomColorDialog extends StatefulWidget {
-  const _CustomColorDialog();
+/// 외부에서도 사용 가능한 공개 색상 선택 다이얼로그
+class CustomColorDialog extends StatefulWidget {
+  const CustomColorDialog();
   @override
-  State<_CustomColorDialog> createState() => _CustomColorDialogState();
+  State<CustomColorDialog> createState() => _CustomColorDialogState();
 }
 
-class _CustomColorDialogState extends State<_CustomColorDialog> {
+class _CustomColorDialogState extends State<CustomColorDialog> {
   final _hexCtrl = TextEditingController(text: '7C6AFA');
   String? _error;
   String? _selectedPaletteHex;
