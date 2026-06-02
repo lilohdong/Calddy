@@ -28,9 +28,14 @@ import '../../features/friend/presentation/pages/friends_page.dart';
 import '../../features/friend/presentation/pages/merge_calendar_page.dart';
 import '../../features/map/presentation/pages/place_picker_page.dart';
 import '../../features/notification/presentation/pages/notifications_page.dart';
+import '../../features/user/presentation/pages/birth_date_setting_page.dart';
 import '../../features/user/presentation/pages/edit_profile_page.dart';
+import '../../features/user/presentation/pages/email_setting_page.dart';
+import '../../features/user/presentation/pages/logout_page.dart';
+import '../../features/user/presentation/pages/notification_settings_page.dart';
 import '../../features/user/presentation/pages/profile_page.dart';
 import '../../features/user/presentation/pages/settings_page.dart';
+import '../../features/user/presentation/pages/withdraw_page.dart';
 import 'app_routes.dart';
 import 'main_shell.dart';
 
@@ -248,6 +253,26 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'settings',
                 builder: (_, _) => const SettingsPage(),
+              ),
+              GoRoute(
+                path: 'email',
+                builder: (_, _) => const EmailSettingPage(),
+              ),
+              GoRoute(
+                path: 'birth-date',
+                builder: (_, _) => const BirthDateSettingPage(),
+              ),
+              GoRoute(
+                path: 'notification',
+                builder: (_, _) => const NotificationSettingsPage(),
+              ),
+              GoRoute(
+                path: 'logout',
+                builder: (_, _) => const LogoutPage(),
+              ),
+              GoRoute(
+                path: 'withdraw',
+                builder: (_, _) => const WithdrawPage(),
               ),
             ],
           ),

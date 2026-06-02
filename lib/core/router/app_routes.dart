@@ -55,6 +55,11 @@ abstract class AppRoutes {
   static const String notifications    = '/notifications';
 
   // ── User ────────────────────────────────────────────────────
-  static const String settings         = '/profile/settings';
-  static const String editProfile      = '/profile/edit';
+  static const String settings              = '/profile/settings';
+  static const String editProfile           = '/profile/edit';
+  static const String emailSetting          = '/profile/email';
+  static const String birthDateSetting      = '/profile/birth-date';
+  static const String notificationSettings  = '/profile/notification';
+  static const String logout                = '/profile/logout';
+  static const String withdraw              = '/profile/withdraw';
 }
