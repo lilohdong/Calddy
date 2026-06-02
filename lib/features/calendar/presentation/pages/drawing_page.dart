@@ -481,14 +481,24 @@ class _BottomToolPanel extends StatelessWidget {
                     ),
                   ],
                 ),
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.emoji_emotions_outlined,
-                      size: 18, color: Colors.black54),
-                  title: const Text('스티커', style: TextStyle(fontSize: 14)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                GestureDetector(
                   onTap: onStickerToggle,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.emoji_emotions_outlined,
+                              size: 18, color: Colors.black54),
+                          SizedBox(width: 8),
+                          Text('스티커',
+                              style: TextStyle(
+                                  fontSize: 14, color: Colors.black87)),
+                        ],
+                      ),
+                      const Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
                 ),
               ],
             ),
