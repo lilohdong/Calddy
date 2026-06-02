@@ -38,10 +38,11 @@ class _NotificationSettingsPageState
       !_commentsLikes && !_mentions && !_friendSchedule && !_marketing;
 
   void _onItemChanged(VoidCallback update) {
-    update();
-    final allOff = !_commentsLikes && !_mentions && !_friendSchedule && !_marketing;
     setState(() {
-      if (allOff) _pushEnabled = false;
+      update();
+      if (!_commentsLikes && !_mentions && !_friendSchedule && !_marketing) {
+        _pushEnabled = false;
+      }
     });
   }
 

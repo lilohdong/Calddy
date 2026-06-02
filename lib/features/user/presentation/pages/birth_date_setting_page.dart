@@ -56,11 +56,13 @@ class _BirthDateSettingPageState
   void _onDayChanged(int i)   => setState(() => _selectedDay   = i + 1);
 
   Future<void> _save() async {
+    final maxDay = DateTime(_selectedYear, _selectedMonth + 1, 0).day;
+    final safeDay = _selectedDay.clamp(1, maxDay);
     setState(() => _isLoading = true);
     try {
       await ref.read(updateBirthDateUseCaseProvider).call(
             UpdateBirthDateParams(
-              birthDate: DateTime(_selectedYear, _selectedMonth, _selectedDay),
+              birthDate: DateTime(_selectedYear, _selectedMonth, safeDay),
             ),
           );
       ref.invalidate(currentUserProfileProvider);
