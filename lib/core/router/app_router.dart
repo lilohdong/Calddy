@@ -180,7 +180,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
               GoRoute(
                 path: 'range/create',
-                builder: (_, _) => const RangeCreatePage(),
+                builder: (_, s) => RangeCreatePage(
+                  prefilledDate: s.extra is DateTime ? s.extra as DateTime : null,
+                ),
               ),
               GoRoute(
                 path: 'event/:eventId/record',
@@ -294,11 +296,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.aiMidpoint,
         builder: (_, s) {
           final extra = s.extra;
+          // 단일 친구(일반 태그) → String
+          // 다중 친구(합쳐보기) → List<String>
+          // 약속 ID 연동 → Map{'appointmentId': String, 'friendId'?: String}
           return AiMidpointPage(
-            // 단일 친구(일반 태그) → String
-            // 다중 친구(합쳐보기) → List<String>
-            friendId: extra is String ? extra : null,
+            friendId: extra is String
+                ? extra
+                : (extra is Map ? extra['friendId'] as String? : null),
             friendIds: extra is List<String> ? extra : null,
+            appointmentId:
+                extra is Map ? extra['appointmentId'] as String? : null,
           );
         },
       ),

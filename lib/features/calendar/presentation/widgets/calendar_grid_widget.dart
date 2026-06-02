@@ -38,7 +38,8 @@ class CalendarGridWidget extends StatelessWidget {
     for (int i = 0; i < lastDay.day; i++) {
       dates.add(DateTime(year, month, i + 1));
     }
-    while (dates.length < 42) {
+    // 마지막 주만 채움 (6행 고정 제거)
+    while (dates.length % 7 != 0) {
       dates.add(dates.last.add(const Duration(days: 1)));
     }
     return dates;
@@ -111,7 +112,8 @@ class CalendarGridWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dates = _buildMonthDates();
-    final weeks = List.generate(6, (i) => dates.sublist(i * 7, i * 7 + 7));
+    final weekCount = dates.length ~/ 7;
+    final weeks = List.generate(weekCount, (i) => dates.sublist(i * 7, i * 7 + 7));
 
     // 빌드 시 1회 전처리 — 이후 셀당 O(1) 조회 (이전: O(n) × 42)
     final eventsByDate = <String, List<EventEntity>>{};
@@ -169,7 +171,7 @@ class CalendarGridWidget extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final cellWidth = constraints.maxWidth / 7;
-              final cellHeight = constraints.maxHeight / 6;
+              final cellHeight = constraints.maxHeight / weeks.length;
 
               return Column(
                 children: weeks.map((weekDays) {

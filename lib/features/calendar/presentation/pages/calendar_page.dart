@@ -258,7 +258,7 @@ class _YearMonthPickerDialogState extends State<_YearMonthPickerDialog> {
                           horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? const Color(0xFF7C6AFA)
+                            ? Colors.black87
                             : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -300,7 +300,7 @@ class _YearMonthPickerDialogState extends State<_YearMonthPickerDialog> {
                     duration: const Duration(milliseconds: 150),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF7C6AFA)
+                          ? Colors.black87
                           : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
                     ),
