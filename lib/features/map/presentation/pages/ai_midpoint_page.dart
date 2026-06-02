@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../friend/domain/entities/friend_entity.dart';
 import '../../../friend/presentation/providers/friend_providers.dart';
+import '../../../../core/error/failures.dart';
 import '../../domain/entities/location_input.dart';
 import '../../domain/entities/midpoint_result_entity.dart';
 import '../../domain/entities/place_entity.dart';
@@ -731,7 +732,8 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
             children: [
               Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
               const SizedBox(height: 12),
-              Text('중간지점을 계산할 수 없어요\n$e',
+              Text(
+                  '중간지점을 계산할 수 없어요\n${e is MapFailure ? e.message : e.toString()}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.grey)),
               const SizedBox(height: 16),
@@ -805,7 +807,8 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
             children: [
               Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
               const SizedBox(height: 12),
-              Text('중간지점을 계산할 수 없어요\n$e',
+              Text(
+                  '중간지점을 계산할 수 없어요\n${e is MapFailure ? e.message : e.toString()}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.grey)),
               const SizedBox(height: 16),

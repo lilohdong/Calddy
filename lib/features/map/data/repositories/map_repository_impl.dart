@@ -31,8 +31,16 @@ class MapRepositoryImpl implements MapRepository {
       return await fn();
     } on FunctionException catch (e) {
       if (e.status == 404) throw const MapAppointmentNotFoundFailure();
-      if (e.status == 422) throw const NoLocationDataFailure();
-      throw MapApiFailure(e.details?.toString() ?? e.toString());
+      // Edge Function이 반환한 에러 메시지 추출
+      final detail = e.details;
+      String msg;
+      if (detail is Map) {
+        msg = detail['error']?.toString() ?? detail.toString();
+      } else {
+        msg = detail?.toString() ?? e.toString();
+      }
+      if (e.status == 422) throw MapApiFailure(msg);
+      throw MapApiFailure('[${e.status}] $msg');
     } on AuthException {
       throw const MapSessionExpiredFailure();
     } catch (e) {
