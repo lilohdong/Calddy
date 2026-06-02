@@ -9,6 +9,7 @@ import '../../domain/entities/event_entity.dart';
 import '../../domain/usecases/create_event_usecase.dart';
 import '../providers/calendar_providers.dart';
 import '../widgets/color_picker_row.dart';
+import '../../domain/usecases/create_habit_usecase.dart';
 import '../../../friend/domain/entities/friend_entity.dart';
 import '../../../friend/presentation/providers/friend_providers.dart';
 import '../../../appointment/domain/usecases/create_appointment_use_case.dart';
@@ -136,37 +137,45 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
         recurrenceDays = [_recurrenceMonthDay ?? _startAt.day];
       }
 
-      // 1. 이벤트 생성 — 반환된 entity에 DB 할당 id가 들어 있음
-      final createdEvent =
-          await ref.read(createEventUseCaseProvider).call(
-                CreateEventParams(
-                  event: EventEntity(
-                    id: '',
-                    userId: currentUserId,
-                    title: _titleCtrl.text.trim(),
-                    location: _locationCtrl.text.trim().isEmpty
-                        ? null
-                        : _locationCtrl.text.trim(),
-                    startAt: _startAt,
-                    endAt: _endAt,
-                    color: _color,
-                    isDday: _isDday,
-                    memo: _memoCtrl.text.trim().isEmpty
-                        ? null
-                        : _memoCtrl.text.trim(),
-                    notifyBeforeMin: _computeNotifyBeforeMin(),
-                    status: EventStatus.pending,
-                    visibility: EventVisibility.public,
-                    createdAt: now,
-                    recurrenceType: _recurrenceType,
-                    recurrenceDays: recurrenceDays,
-                  ),
-                ),
-              );
+      final baseEntity = EventEntity(
+        id: '',
+        userId: currentUserId,
+        title: _titleCtrl.text.trim(),
+        location: _locationCtrl.text.trim().isEmpty
+            ? null
+            : _locationCtrl.text.trim(),
+        startAt: _startAt,
+        endAt: _endAt,
+        color: _color,
+        isDday: _isDday,
+        memo: _memoCtrl.text.trim().isEmpty
+            ? null
+            : _memoCtrl.text.trim(),
+        notifyBeforeMin: _computeNotifyBeforeMin(),
+        status: EventStatus.pending,
+        visibility: EventVisibility.public,
+        createdAt: now,
+        recurrenceType: _recurrenceType,
+        recurrenceDays: recurrenceDays,
+      );
 
-      // 2. 초대할 친구가 있으면 약속(Appointment) 자동 생성
+      // 1. 이벤트 생성
+      EventEntity? createdEvent;
+      if (_recurrenceType != null) {
+        // 반복 이벤트: 여러 인스턴스 일괄 생성
+        await ref.read(createHabitUseCaseProvider).call(
+              CreateHabitParams(template: baseEntity),
+            );
+      } else {
+        // 단일 이벤트: 기존 방식
+        createdEvent = await ref.read(createEventUseCaseProvider).call(
+              CreateEventParams(event: baseEntity),
+            );
+      }
+
+      // 2. 초대할 친구가 있으면 약속(Appointment) 자동 생성 (단일 이벤트만)
       final inviteeIds = _allInviteeIds;
-      if (inviteeIds.isNotEmpty) {
+      if (inviteeIds.isNotEmpty && createdEvent != null) {
         await ref.read(createAppointmentUseCaseProvider).call(
               CreateAppointmentParams(
                 eventId: createdEvent.id,
@@ -178,7 +187,8 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
       ref.invalidate(calendarDataProvider);
 
       if (mounted) {
-        if (inviteeIds.isNotEmpty) {
+        // createdEvent == null이면 반복 이벤트 → 약속 미생성이므로 스낵바 표시 안 함
+        if (inviteeIds.isNotEmpty && createdEvent != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -255,7 +265,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                         : null,
                     onTap: () {
                       setState(() => _alarmMode = opt.$1);
-                      Navigator.of(ctx).pop();
+                      ctx.pop();
                     },
                   )),
               ListTile(
@@ -290,7 +300,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                       _alarmMode = _AlarmMode.custom;
                       _customAlarmTime = picked;
                     });
-                    if (ctx.mounted) Navigator.of(ctx).pop();
+                    if (ctx.mounted) ctx.pop();
                   }
                 },
               ),
@@ -334,7 +344,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
         excludeIds: _prefilledIds,
         onSelected: (friend) {
           setState(() => _taggedFriend = friend);
-          Navigator.of(context).pop();
+          context.pop();
         },
       ),
     );
@@ -530,12 +540,12 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
               icon: Icons.alarm_outlined,
               onTap: _showAlarmPicker,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('알림', style: TextStyle(fontSize: 14)),
+                  const Spacer(),
                   Text(_alarmLabel(),
                       style:
-                          const TextStyle(fontSize: 14, color: Colors.grey)),
+                          const TextStyle(fontSize: 13, color: Colors.grey)),
                 ],
               ),
             ),
@@ -546,12 +556,12 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
               icon: Icons.repeat_outlined,
               onTap: _showRepeatPicker,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('반복', style: TextStyle(fontSize: 14)),
+                  const Spacer(),
                   Text(_repeatLabel(),
                       style:
-                          const TextStyle(fontSize: 14, color: Colors.grey)),
+                          const TextStyle(fontSize: 13, color: Colors.grey)),
                 ],
               ),
             ),
@@ -835,16 +845,15 @@ class _SettingCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Icon(icon, size: 18, color: Colors.grey.shade600),
-            ),
+            Icon(icon, size: 18, color: Colors.grey.shade600),
             const SizedBox(width: 12),
             Expanded(child: child),
-            if (onTap != null)
+            if (onTap != null) ...[
+              const SizedBox(width: 4),
               const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
+            ],
           ],
         ),
       ),
@@ -1081,7 +1090,7 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
                 child: ElevatedButton(
                   onPressed: () {
                     widget.onChanged(_type, _weekday, _monthDay);
-                    Navigator.of(context).pop();
+                    context.pop();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF7C6AFA),

@@ -17,7 +17,9 @@ import '../../../friend/presentation/providers/friend_providers.dart';
 enum _RangeAlarmMode { none, sameDay9am, thirtyMin, oneHour, oneDay, custom }
 
 class RangeCreatePage extends ConsumerStatefulWidget {
-  const RangeCreatePage({super.key});
+  const RangeCreatePage({super.key, this.prefilledDate});
+
+  final DateTime? prefilledDate;
 
   @override
   ConsumerState<RangeCreatePage> createState() => _RangeCreatePageState();
@@ -27,6 +29,16 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
   final _titleCtrl = TextEditingController();
   DateTime? _startDate;
   DateTime? _endDate;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.prefilledDate != null) {
+      final d = widget.prefilledDate!;
+      _startDate = DateTime(d.year, d.month, d.day, 0, 0);
+      _endDate = DateTime(d.year, d.month, d.day, 23, 59);
+    }
+  }
   String _color = '#7C6AFA';
   bool _isLoading = false;
 
@@ -37,9 +49,13 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
   // 친구 태그
   FriendEntity? _taggedFriend;
 
+  // 장소 (값은 _locationCtrl.text에서 직접 읽음)
+  final _locationCtrl = TextEditingController();
+
   @override
   void dispose() {
     _titleCtrl.dispose();
+    _locationCtrl.dispose();
     super.dispose();
   }
 
@@ -94,6 +110,9 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                 id: '',
                 userId: currentUserId,
                 title: _titleCtrl.text.trim(),
+                location: _locationCtrl.text.trim().isEmpty
+                    ? null
+                    : _locationCtrl.text.trim(),
                 startAt: _startDate!,
                 endAt: _endDate!,
                 color: _color,
@@ -338,9 +357,18 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
             icon: Icons.location_on_outlined,
             child: Row(
               children: [
-                const Expanded(
-                  child: Text('장소 설정',
-                      style: TextStyle(fontSize: 14, color: Colors.grey)),
+                Expanded(
+                  child: TextField(
+                    controller: _locationCtrl,
+                    decoration: const InputDecoration(
+                      hintText: '장소를 입력하세요',
+                      hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    style: const TextStyle(fontSize: 14),
+                  ),
                 ),
                 if (_taggedFriend != null)
                   TextButton(
@@ -350,7 +378,7 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                         extra: _taggedFriend!.friendId,
                       );
                       if (result != null && mounted) {
-                        // location display is read-only in range; no controller needed
+                        _locationCtrl.text = result;
                       }
                     },
                     style: TextButton.styleFrom(
@@ -373,6 +401,7 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
             onTap: _showFriendPicker,
             child: _RowTile(
               icon: Icons.person_add_alt_outlined,
+              trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 16),
               child: _taggedFriend == null
                   ? const Text('친구를 태그하세요',
                       style: TextStyle(fontSize: 14, color: Colors.grey))
@@ -398,10 +427,11 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                             ),
                           ),
                         const SizedBox(width: 8),
-                        Text(_taggedFriend!.friendProfile.nickname ?? '',
-                            style: const TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w500)),
-                        const Spacer(),
+                        Expanded(
+                          child: Text(_taggedFriend!.friendProfile.nickname ?? '',
+                              style: const TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w500)),
+                        ),
                         GestureDetector(
                           onTap: () => setState(() => _taggedFriend = null),
                           child: const Icon(Icons.close,
@@ -418,9 +448,16 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
             onTap: _showAlarmPicker,
             child: _RowTile(
               icon: Icons.alarm_outlined,
-              trailing: Text(
-                _alarmLabel(),
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _alarmLabel(),
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right, color: Colors.grey, size: 16),
+                ],
               ),
               child: const Text('알림',
                   style: TextStyle(fontSize: 14, color: Colors.black87)),
@@ -482,7 +519,7 @@ class _RowTile extends StatelessWidget {
           Icon(icon, size: 20, color: Colors.grey.shade600),
           const SizedBox(width: 12),
           Expanded(child: child),
-          ?trailing,
+          if (trailing != null) trailing!,
         ],
       ),
     );

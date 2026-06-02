@@ -258,15 +258,18 @@ class _YearMonthPickerDialogState extends State<_YearMonthPickerDialog> {
                           horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? const Color(0xFF7C6AFA)
+                            ? const Color(0xFFEDE9FF)
                             : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(20),
+                        border: isSelected
+                            ? Border.all(color: const Color(0xFF7C6AFA), width: 1.5)
+                            : null,
                       ),
                       child: Text(
                         '$y년',
                         style: TextStyle(
                           fontSize: 13,
-                          color: isSelected ? Colors.white : Colors.black87,
+                          color: isSelected ? const Color(0xFF7C6AFA) : Colors.black87,
                           fontWeight: isSelected
                               ? FontWeight.w600
                               : FontWeight.normal,
@@ -300,16 +303,19 @@ class _YearMonthPickerDialogState extends State<_YearMonthPickerDialog> {
                     duration: const Duration(milliseconds: 150),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF7C6AFA)
+                          ? const Color(0xFFEDE9FF)
                           : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
+                      border: isSelected
+                          ? Border.all(color: const Color(0xFF7C6AFA), width: 1.5)
+                          : null,
                     ),
                     child: Center(
                       child: Text(
                         months[i],
                         style: TextStyle(
                           fontSize: 13,
-                          color: isSelected ? Colors.white : Colors.black87,
+                          color: isSelected ? const Color(0xFF7C6AFA) : Colors.black87,
                           fontWeight: isSelected
                               ? FontWeight.w600
                               : FontWeight.normal,

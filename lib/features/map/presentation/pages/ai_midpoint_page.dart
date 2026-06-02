@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../friend/domain/entities/friend_entity.dart';
 import '../../../friend/presentation/providers/friend_providers.dart';
+import '../../../../core/error/failures.dart';
+import '../../domain/entities/location_input.dart';
+import '../../domain/entities/midpoint_result_entity.dart';
+import '../../domain/entities/place_entity.dart';
+import '../providers/map_providers.dart';
 
 class AiMidpointPage extends ConsumerStatefulWidget {
   const AiMidpointPage({
     super.key,
     this.friendId,
     this.friendIds,
+    this.appointmentId,
   });
 
   /// 일반 태그: 단일 친구 ID
@@ -17,6 +25,9 @@ class AiMidpointPage extends ConsumerStatefulWidget {
 
   /// 합쳐보기: 다중 친구 ID 목록
   final List<String>? friendIds;
+
+  /// 약속 ID — 제공 시 실제 백엔드 API 사용
+  final String? appointmentId;
 
   @override
   ConsumerState<AiMidpointPage> createState() => _AiMidpointPageState();
@@ -26,6 +37,8 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
   // 0: 대기 중 (친구 응답 기다림), 1: 결과 표시
   int _step = 0;
   String _myLocation = '';
+  String _friendLocation = '';
+  bool _friendInputManually = false;
   String _calcBasis = '대중교통 최적화';
   int _selectedIndex = 0;
 
@@ -33,13 +46,15 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
   bool get _isMulti =>
       widget.friendIds != null && widget.friendIds!.isNotEmpty;
 
-  static const _calcOptions = ['대중교통 최적화', '직선 거리', '도보 최적화'];
+  /// 계산하기 버튼 활성화 조건
+  bool get _canCalculate {
+    if (_myLocation.trim().isEmpty) return false;
+    if (widget.appointmentId != null) return true; // 백엔드 모드: 내 위치만 있으면 됨
+    if (_isMulti) return true; // 다중 친구 모드: 내 위치만 있으면 계산 (친구 입력 UI 미구현)
+    return _friendInputManually && _friendLocation.trim().isNotEmpty;
+  }
 
-  static const _mockPlaces = [
-    _MidpointPlace(rank: 1, name: '고속터미널역', lines: '3, 7, 9호선', avgMinutes: 30),
-    _MidpointPlace(rank: 2, name: '강남구청역', lines: '7호선', avgMinutes: 32),
-    _MidpointPlace(rank: 3, name: '신논현역', lines: '9호선', avgMinutes: 35),
-  ];
+  static const _calcOptions = ['대중교통 최적화', '직선 거리', '도보 최적화'];
 
   @override
   Widget build(BuildContext context) {
@@ -104,20 +119,7 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
           ],
         ),
         centerTitle: true,
-        actions: [
-          if (_step == 1)
-            TextButton(
-              onPressed: () {
-                final place = _mockPlaces[_selectedIndex];
-                context.pop(place.name);
-              },
-              child: const Text('✓',
-                  style: TextStyle(
-                      color: Color(0xFF7C6AFA),
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
-            ),
-        ],
+        actions: const [],
       ),
       body: _step == 0
           ? (_isMulti
@@ -253,76 +255,144 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
           ),
           const SizedBox(height: 16),
 
-          // 친구 출발지 대기 표시
+          // 친구 출발지 대기 / 직접 입력
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: const Color(0xFFF7F7FB),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 12,
-                  backgroundColor:
-                      const Color(0xFF7C6AFA).withValues(alpha: 0.2),
-                  backgroundImage: friendAvatar != null
-                      ? NetworkImage(friendAvatar)
-                      : null,
-                  child: friendAvatar == null
-                      ? Text(
-                          friendName[0],
-                          style: const TextStyle(
-                              fontSize: 10,
-                              color: Color(0xFF7C6AFA),
-                              fontWeight: FontWeight.bold),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Text('$friendName님의 출발 장소',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14)),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text('설정 기다리는 중...',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade400)),
-                      ],
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor:
+                          const Color(0xFF7C6AFA).withValues(alpha: 0.2),
+                      backgroundImage: friendAvatar != null
+                          ? NetworkImage(friendAvatar)
+                          : null,
+                      child: friendAvatar == null
+                          ? Text(
+                              friendName[0],
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF7C6AFA),
+                                  fontWeight: FontWeight.bold),
+                            )
+                          : null,
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('$friendName님의 출발 장소',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14)),
+                          const SizedBox(height: 2),
+                          if (!_friendInputManually)
+                            Row(
+                              children: [
+                                SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text('설정 기다리는 중...',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade400)),
+                              ],
+                            )
+                          else
+                            Text(
+                              _friendLocation.isEmpty
+                                  ? '직접 입력 중...'
+                                  : _friendLocation,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _friendLocation.isEmpty
+                                    ? Colors.grey.shade400
+                                    : Colors.black87,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // 내가 대신 입력하기 버튼
+                    if (!_friendInputManually)
+                      TextButton(
+                        onPressed: () =>
+                            setState(() => _friendInputManually = true),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF7C6AFA),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          textStyle: const TextStyle(fontSize: 11),
+                        ),
+                        child: const Text('내가 대신\n입력하기',
+                            textAlign: TextAlign.center),
+                      ),
                   ],
                 ),
+                if (_friendInputManually) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    onChanged: (v) => setState(() => _friendLocation = v),
+                    decoration: InputDecoration(
+                      hintText:
+                          '$friendName님의 출발 장소 입력 (예: 홍대입구역)',
+                      hintStyle: TextStyle(
+                          color: Colors.grey.shade400, fontSize: 13),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            BorderSide(color: Colors.grey.shade200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF7C6AFA)),
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      prefixIcon: const Icon(Icons.location_on_outlined,
+                          size: 18, color: Color(0xFFFF9800)),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           const Spacer(),
 
-          // 계산하기 버튼 (출발지 입력 후 활성화)
+          // 계산하기 버튼
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _myLocation.trim().isEmpty
-                  ? null
-                  : () => setState(() => _step = 1),
+              onPressed:
+                  _canCalculate ? () => setState(() => _step = 1) : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF7C6AFA),
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.grey.shade200,
+                disabledForegroundColor: Colors.grey.shade400,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -563,13 +633,13 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _myLocation.trim().isEmpty
-                  ? null
-                  : () => setState(() => _step = 1),
+              onPressed:
+                  _canCalculate ? () => setState(() => _step = 1) : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF7C6AFA),
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.grey.shade200,
+                disabledForegroundColor: Colors.grey.shade400,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -591,8 +661,310 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
     );
   }
 
+  /// 직접 입력 모드의 locations 빌드 (currentUser + 친구)
+  List<LocationInput> _buildDirectLocations(
+      String myNickname, String friendNickname) {
+    final myId =
+        Supabase.instance.client.auth.currentUser?.id ?? 'me';
+    final friendId = widget.friendId ?? 'friend';
+    return [
+      LocationInput(userId: myId, nickname: myNickname, address: _myLocation),
+      LocationInput(
+          userId: friendId,
+          nickname: friendNickname,
+          address: _friendLocation),
+    ];
+  }
+
   // ── Step 1: 결과 화면 ──────────────────────────────────────────────
   Widget _buildResultStep() {
+    // Mode A: appointmentId 있으면 기존 provider 사용
+    if (widget.appointmentId != null) {
+      return _buildRealResultStep(widget.appointmentId!);
+    }
+    // Mode B: 직접 입력 → 새 midpointDirectProvider 사용
+    if (_myLocation.isNotEmpty && _friendLocation.isNotEmpty) {
+      return _buildDirectResultStep();
+    }
+    return _buildMockResultStep();
+  }
+
+  /// Mode B 결과 화면 — midpointDirectProvider 사용
+  Widget _buildDirectResultStep() {
+    // 친구 정보 가져오기
+    final friendsAsync =
+        ref.watch(friendsProvider(FriendSortType.alphabetical));
+    final friendNickname = friendsAsync.maybeWhen(
+      data: (list) =>
+          list
+              .where((f) => f.friendId == widget.friendId)
+              .firstOrNull
+              ?.friendProfile
+              .nickname ??
+          '친구',
+      orElse: () => '친구',
+    );
+
+    final myNickname =
+        Supabase.instance.client.auth.currentUser?.email?.split('@').first ??
+            '나';
+
+    final locations = _buildDirectLocations(myNickname, friendNickname);
+    // String 키 사용 — List는 참조 동등성이라 매 build마다 재시작됨
+    final locationsKey = LocationInput.listToKey(locations);
+    final midpointAsync = ref.watch(midpointDirectProvider(locationsKey));
+
+    return midpointAsync.when(
+      loading: () => const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('중간지점 계산 중...', style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      ),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              Text(
+                  '중간지점을 계산할 수 없어요\n${e is MapFailure ? e.message : e.toString()}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => setState(() => _step = 0),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C6AFA),
+                    foregroundColor: Colors.white),
+                child: const Text('다시 입력하기'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (midpoint) {
+        final recommendAsync = ref.watch(recommendPlaceProvider(midpoint));
+        return recommendAsync.when(
+          loading: () => const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('장소 추천 중...', style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          ),
+          error: (e, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.map_outlined,
+                      size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  const Text('장소 추천을 불러오지 못했어요',
+                      style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => setState(() => _step = 0),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C6AFA),
+                        foregroundColor: Colors.white),
+                    child: const Text('다시 입력하기'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          data: (recommendation) => _buildResultContent(
+            midpoint: midpoint,
+            places: recommendation.places,
+          ),
+        );
+      },
+    );
+  }
+
+  /// 백엔드 연동 결과 화면 (appointmentId 있을 때)
+  Widget _buildRealResultStep(String appointmentId) {
+    final midpointAsync = ref.watch(midpointProvider(appointmentId));
+
+    return midpointAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              Text(
+                  '중간지점을 계산할 수 없어요\n${e is MapFailure ? e.message : e.toString()}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => setState(() => _step = 0),
+                child: const Text('돌아가기'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (midpoint) {
+        final recommendAsync = ref.watch(recommendPlaceProvider(midpoint));
+        return recommendAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.map_outlined, size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  const Text('장소 추천을 불러오지 못했어요',
+                      style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => setState(() => _step = 0),
+                    child: const Text('돌아가기'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          data: (recommendation) => _buildResultContent(
+            midpoint: midpoint,
+            places: recommendation.places,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildResultContent({
+    required MidpointResultEntity midpoint,
+    required List<PlaceEntity> places,
+  }) {
+    return Column(
+      children: [
+        // 네이버 지도
+        SizedBox(
+          height: 200,
+          child: NaverMap(
+            options: NaverMapViewOptions(
+              initialCameraPosition: NCameraPosition(
+                target: NLatLng(midpoint.lat, midpoint.lng),
+                zoom: 13,
+              ),
+            ),
+            onMapReady: (controller) {
+              // 중간지점 마커
+              controller.addOverlay(NMarker(
+                id: 'midpoint',
+                position: NLatLng(midpoint.lat, midpoint.lng),
+                caption: const NOverlayCaption(text: 'AI 추천 중간지점'),
+              ));
+              // 추천 장소 마커
+              for (int i = 0; i < places.length && i < 3; i++) {
+                final p = places[i];
+                controller.addOverlay(NMarker(
+                  id: 'place_$i',
+                  position: NLatLng(p.lat, p.lng),
+                  caption: NOverlayCaption(text: '${i + 1}. ${p.name}'),
+                ));
+              }
+            },
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              // 참여자 이동 시간
+              if (midpoint.participants.isNotEmpty) ...[
+                const Text('참여자 예상 이동 시간',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: midpoint.participants.map((p) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0EEFF),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${p.nickname} · ${p.travelMinutes ?? '?'}분',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF5B50D6)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+              ],
+              const Text('추천 중간지점',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey)),
+              const SizedBox(height: 8),
+              ...places.asMap().entries.map((e) {
+                final i = e.key;
+                final p = e.value;
+                final isSelected = _selectedIndex == i;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedIndex = i),
+                  child: _PlaceTile(
+                    rank: i + 1,
+                    name: p.name,
+                    address: p.address,
+                    distance: p.distanceFromMidpoint,
+                    isSelected: isSelected,
+                  ),
+                );
+              }),
+              const SizedBox(height: 16),
+              _ActionButtons(
+                onPrev: () => setState(() => _step = 0),
+                onConfirm: places.isEmpty
+                    ? null
+                    : () => context.pop(places[_selectedIndex].name),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Mock 결과 화면 (appointmentId 없을 때)
+  Widget _buildMockResultStep() {
+    final mockPlaces = [
+      _MockPlace(rank: 1, name: '고속터미널역', sub: '3, 7, 9호선 · 평균 30분'),
+      _MockPlace(rank: 2, name: '강남구청역', sub: '7호선 · 평균 32분'),
+      _MockPlace(rank: 3, name: '신논현역', sub: '9호선 · 평균 35분'),
+    ];
+
     return Column(
       children: [
         // 지도 플레이스홀더
@@ -610,12 +982,12 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
                     label: '나·${_myLocation.isEmpty ? '내 위치' : _myLocation}',
                     color: const Color(0xFF7C6AFA)),
               ),
-              const Positioned(
+              Positioned(
                 right: 60,
                 top: 40,
                 child: _MapPin(
-                    label: 'Friend·출발지',
-                    color: Color(0xFFFF9800)),
+                    label: '친구·${_friendLocation.isEmpty ? '출발지' : _friendLocation}',
+                    color: const Color(0xFFFF9800)),
               ),
               Center(
                 child: Container(
@@ -649,8 +1021,7 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
                   children: _calcOptions.map((opt) {
                     final isSelected = _calcBasis == opt;
                     return GestureDetector(
-                      onTap: () =>
-                          setState(() => _calcBasis = opt),
+                      onTap: () => setState(() => _calcBasis = opt),
                       child: Container(
                         margin: const EdgeInsets.only(right: 8),
                         padding: const EdgeInsets.symmetric(
@@ -683,119 +1054,25 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
                       fontWeight: FontWeight.w600,
                       color: Colors.grey)),
               const SizedBox(height: 8),
-              ..._mockPlaces.asMap().entries.map((e) {
+              ...mockPlaces.asMap().entries.map((e) {
                 final i = e.key;
                 final p = e.value;
                 final isSelected = _selectedIndex == i;
                 return GestureDetector(
-                  onTap: () =>
-                      setState(() => _selectedIndex = i),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFF7C6AFA)
-                              .withValues(alpha: 0.08)
-                          : const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(12),
-                      border: isSelected
-                          ? Border.all(
-                              color: const Color(0xFF7C6AFA),
-                              width: 1.5)
-                          : null,
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? const Color(0xFF7C6AFA)
-                                : Colors.grey.shade300,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text('${p.rank}',
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : Colors.grey,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                )),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              Text(p.name,
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight:
-                                          FontWeight.w600)),
-                              Text(
-                                '${p.lines} · 평균 ${p.avgMinutes}분',
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                  onTap: () => setState(() => _selectedIndex = i),
+                  child: _PlaceTile(
+                    rank: p.rank,
+                    name: p.name,
+                    address: p.sub,
+                    isSelected: isSelected,
                   ),
                 );
               }),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () =>
-                          setState(() => _step = 0),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                            color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14),
-                      ),
-                      child: const Text('이전으로',
-                          style: TextStyle(
-                              color: Colors.black87)),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final place =
-                            _mockPlaces[_selectedIndex];
-                        context.pop(place.name);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            const Color(0xFF7C6AFA),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14),
-                      ),
-                      child: const Text('이 장소로 설정'),
-                    ),
-                  ),
-                ],
+              _ActionButtons(
+                onPrev: () => setState(() => _step = 0),
+                onConfirm: () =>
+                    context.pop(mockPlaces[_selectedIndex].name),
               ),
             ],
           ),
@@ -805,17 +1082,126 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
   }
 }
 
-class _MidpointPlace {
-  const _MidpointPlace({
+class _MockPlace {
+  const _MockPlace({required this.rank, required this.name, required this.sub});
+  final int rank;
+  final String name;
+  final String sub;
+}
+
+class _PlaceTile extends StatelessWidget {
+  const _PlaceTile({
     required this.rank,
     required this.name,
-    required this.lines,
-    required this.avgMinutes,
+    required this.address,
+    required this.isSelected,
+    this.distance,
   });
   final int rank;
   final String name;
-  final String lines;
-  final int avgMinutes;
+  final String address;
+  final bool isSelected;
+  final double? distance;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? const Color(0xFF7C6AFA).withValues(alpha: 0.08)
+            : const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(12),
+        border: isSelected
+            ? Border.all(color: const Color(0xFF7C6AFA), width: 1.5)
+            : null,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? const Color(0xFF7C6AFA)
+                  : Colors.grey.shade300,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text('$rank',
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  )),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                if (distance != null)
+                  Text('중간지점에서 ${distance!.toStringAsFixed(0)}m',
+                      style:
+                          const TextStyle(fontSize: 11, color: Colors.grey))
+                else
+                  Text(address,
+                      style:
+                          const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButtons extends StatelessWidget {
+  const _ActionButtons({required this.onPrev, required this.onConfirm});
+  final VoidCallback onPrev;
+  final VoidCallback? onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: onPrev,
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.grey.shade300),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            child: const Text('이전으로',
+                style: TextStyle(color: Colors.black87)),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 2,
+          child: ElevatedButton(
+            onPressed: onConfirm,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF7C6AFA),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            child: const Text('이 장소로 설정'),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _MapPin extends StatelessWidget {

@@ -6,6 +6,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../calendar/domain/entities/event_entity.dart';
 import '../../../calendar/domain/usecases/complete_event_usecase.dart';
+import '../pages/event_create_page.dart';
 import '../providers/calendar_providers.dart';
 import 'color_picker_row.dart';
 
@@ -370,7 +371,10 @@ class NewEventTypeBottomSheet extends StatelessWidget {
             subtitle: '단일 일정 (약속 등)',
             onTap: () {
               context.pop();
-              context.push(AppRoutes.eventCreate);
+              context.push(
+                AppRoutes.eventCreate,
+                extra: EventCreateExtra(prefilledDate: date),
+              );
             },
           ),
           const SizedBox(height: 10),
@@ -382,7 +386,7 @@ class NewEventTypeBottomSheet extends StatelessWidget {
             subtitle: '이틀 이상 진행되는 일정',
             onTap: () {
               context.pop();
-              context.push(AppRoutes.rangeCreate);
+              context.push(AppRoutes.rangeCreate, extra: date);
             },
           ),
           const SizedBox(height: 10),

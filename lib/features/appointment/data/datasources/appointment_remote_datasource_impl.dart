@@ -25,16 +25,36 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
     _uid; // 세션 확인 (RPC 내부에서도 auth.uid() 사용)
 
     // 단일 트랜잭션 RPC: appointments INSERT + invites batch INSERT + events UPDATE
-    final appointmentId = await _client.rpc(
+    final rawResult = await _client.rpc(
       'create_appointment_with_invites',
       params: {
         'p_event_id': eventId,
         'p_invitee_ids': inviteeIds,
         'p_suggested_place': suggestedPlace,
       },
-    ) as String;
+    );
+    final appointmentId = _parseRpcId(rawResult);
 
     return getAppointment(appointmentId);
+  }
+
+  /// RPC가 반환하는 값 형태가 String / List / Map 등 다양할 수 있어 안전하게 파싱
+  static String _parseRpcId(dynamic raw) {
+    if (raw is String) return raw;
+    if (raw is List && raw.isNotEmpty) {
+      final first = raw.first;
+      if (first is String) return first;
+      if (first is Map) {
+        final id = first['id'];
+        if (id is String) return id;
+      }
+    }
+    if (raw is Map) {
+      final id = raw['id'];
+      if (id is String) return id;
+    }
+    throw Exception(
+        'create_appointment_with_invites: id 파싱 실패 — type=${raw.runtimeType}, value=$raw');
   }
 
   @override

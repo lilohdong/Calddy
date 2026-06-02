@@ -10,6 +10,7 @@ import '../../../../core/error/failures.dart';
 import '../../domain/entities/drawing_entity.dart';
 import '../../domain/usecases/save_drawing_usecase.dart';
 import '../providers/calendar_providers.dart';
+import '../widgets/color_picker_row.dart';
 import '../widgets/sticker_grid_widget.dart';
 
 class DrawingPage extends ConsumerStatefulWidget {
@@ -93,27 +94,23 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
   }
 
   Future<void> _save() async {
+    // ⚠️ 썸네일 캡처는 setState 전에 실행해야 함
+    // setState → rebuild 예약 → _canvasKey.currentContext stale 위험
+    final currentUserId =
+        Supabase.instance.client.auth.currentUser?.id ?? '';
+
+    String? thumbnailUrl;
+    try {
+      thumbnailUrl = await _captureAndUploadThumbnail(currentUserId);
+    } catch (e) {
+      // 썸네일 실패는 비치명적 — 드로잉 데이터는 정상 저장됨
+      // (버킷 미생성·네트워크 오류 등 인프라 문제일 경우 조용히 넘김)
+      debugPrint('[Drawing] 썸네일 업로드 실패 (무시): $e');
+    }
+
     setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
-      final currentUserId =
-          Supabase.instance.client.auth.currentUser?.id ?? '';
-
-      // 썸네일 캡처·업로드 — 실패해도 드로잉 저장은 항상 진행
-      String? thumbnailUrl;
-      try {
-        thumbnailUrl = await _captureAndUploadThumbnail(currentUserId);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('썸네일 업로드 실패 (드로잉은 저장됩니다): $e'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        // thumbnailUrl = null 로 저장 계속 진행
-      }
 
       await ref.read(saveDrawingUseCaseProvider).call(
         SaveDrawingParams(
@@ -140,11 +137,14 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
           SnackBar(content: Text(e.message), backgroundColor: Colors.red),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      // catch (_) 대신 catch (e) 로 실제 에러 메시지 표시
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('저장에 실패했습니다.'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('저장 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -234,43 +234,35 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
                     Positioned(
                       top: 20,
                       left: 20,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
                             '${_date.day}',
                             style: TextStyle(
-                              fontSize: 48,
+                              fontSize: 52,
                               fontWeight: FontWeight.bold,
+                              height: 1,
                               color: isDark
-                                  ? Colors.white.withValues(alpha: 0.7)
+                                  ? Colors.white.withValues(alpha: 0.85)
                                   : const Color(0xFF7C6AFA),
                             ),
                           ),
-                          Text(
-                            '${weekdays[_date.weekday % 7]}요일',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.5)
-                                  : Colors.grey,
+                          const SizedBox(width: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              '${weekdays[_date.weekday % 7]}요일',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.55)
+                                    : Colors.grey.shade500,
+                              ),
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    // 동기부여 문구
-                    Positioned(
-                      bottom: 16,
-                      right: 16,
-                      child: Text(
-                        '오늘도 화이팅!',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.4)
-                              : Colors.grey.shade400,
-                        ),
                       ),
                     ),
                     // 배치된 스티커
@@ -311,6 +303,15 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
             bgColors: _bgColors,
             selectedBg: _bgColor,
             onBgChanged: (c) => setState(() => _bgColor = c),
+            onBgColorCustom: () async {
+              final picked = await showDialog<String?>(
+                context: context,
+                builder: (_) => const CustomColorDialog(),
+              );
+              if (picked != null && mounted) {
+                setState(() => _bgColor = ColorPickerRow.fromHex(picked));
+              }
+            },
             handwritingMode: _handwritingMode,
             onHandwritingToggle: (v) => setState(() {
               _handwritingMode = v;
@@ -348,6 +349,7 @@ class _BottomToolPanel extends StatelessWidget {
     required this.bgColors,
     required this.selectedBg,
     required this.onBgChanged,
+    required this.onBgColorCustom,
     required this.handwritingMode,
     required this.onHandwritingToggle,
     required this.showStickerPanel,
@@ -358,6 +360,7 @@ class _BottomToolPanel extends StatelessWidget {
   final List<Color> bgColors;
   final Color selectedBg;
   final ValueChanged<Color> onBgChanged;
+  final VoidCallback onBgColorCustom;
   final bool handwritingMode;
   final ValueChanged<bool> onHandwritingToggle;
   final bool showStickerPanel;
@@ -408,27 +411,41 @@ class _BottomToolPanel extends StatelessWidget {
                         color: Colors.black87)),
                 const SizedBox(height: 8),
                 Row(
-                  children: bgColors
-                      .map((c) => GestureDetector(
-                            onTap: () => onBgChanged(c),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              width: 36,
-                              height: 36,
-                              margin: const EdgeInsets.only(right: 10),
-                              decoration: BoxDecoration(
-                                color: c,
-                                borderRadius: BorderRadius.circular(8),
-                                border: selectedBg == c
-                                    ? Border.all(
-                                        color: const Color(0xFF7C6AFA),
-                                        width: 2)
-                                    : Border.all(
-                                        color: Colors.grey.shade200),
-                              ),
+                  children: [
+                    ...bgColors.map((c) => GestureDetector(
+                          onTap: () => onBgChanged(c),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            width: 36,
+                            height: 36,
+                            margin: const EdgeInsets.only(right: 10),
+                            decoration: BoxDecoration(
+                              color: c,
+                              borderRadius: BorderRadius.circular(8),
+                              border: selectedBg == c
+                                  ? Border.all(
+                                      color: const Color(0xFF7C6AFA),
+                                      width: 2)
+                                  : Border.all(
+                                      color: Colors.grey.shade200),
                             ),
-                          ))
-                      .toList(),
+                          ),
+                        )),
+                    // + 커스텀 컬러
+                    GestureDetector(
+                      onTap: onBgColorCustom,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: const Icon(Icons.add,
+                            size: 18, color: Colors.grey),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -463,14 +480,24 @@ class _BottomToolPanel extends StatelessWidget {
                     ),
                   ],
                 ),
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.emoji_emotions_outlined,
-                      size: 18, color: Colors.black54),
-                  title: const Text('스티커', style: TextStyle(fontSize: 14)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                GestureDetector(
                   onTap: onStickerToggle,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.emoji_emotions_outlined,
+                              size: 18, color: Colors.black54),
+                          SizedBox(width: 8),
+                          Text('스티커',
+                              style: TextStyle(
+                                  fontSize: 14, color: Colors.black87)),
+                        ],
+                      ),
+                      const Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
                 ),
               ],
             ),

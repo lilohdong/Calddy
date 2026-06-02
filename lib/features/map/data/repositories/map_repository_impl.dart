@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../domain/entities/location_input.dart';
 import '../../domain/entities/midpoint_result_entity.dart';
 import '../../domain/entities/recommendation_result_entity.dart';
 import '../../domain/repositories/map_repository.dart';
@@ -15,6 +16,11 @@ class MapRepositoryImpl implements MapRepository {
       _guard(() => _dataSource.calculateMidpoint(appointmentId));
 
   @override
+  Future<MidpointResultEntity> calculateMidpointDirect(
+          List<LocationInput> locations) =>
+      _guard(() => _dataSource.calculateMidpointDirect(locations));
+
+  @override
   Future<RecommendationResultEntity> recommendPlace(
     MidpointResultEntity midpoint,
   ) =>
@@ -25,8 +31,21 @@ class MapRepositoryImpl implements MapRepository {
       return await fn();
     } on FunctionException catch (e) {
       if (e.status == 404) throw const MapAppointmentNotFoundFailure();
-      if (e.status == 422) throw const NoLocationDataFailure();
-      throw MapApiFailure(e.details?.toString() ?? e.toString());
+      // Edge Function이 반환한 에러 메시지 추출
+      final detail = e.details;
+      String msg;
+      if (detail is Map) {
+        msg = detail['error']?.toString() ?? detail.toString();
+      } else {
+        msg = detail?.toString() ?? e.toString();
+      }
+      // 422: Mode A(프로필 위치 없음)는 기존 안내 메시지 유지, Mode B(주소 못 찾음)는 msg 표시
+      if (e.status == 422) {
+        final isProfileLocation = msg.contains('home_lat') || msg.contains('home location');
+        if (isProfileLocation) throw const NoLocationDataFailure();
+        throw MapApiFailure(msg);
+      }
+      throw MapApiFailure('[${e.status}] $msg');
     } on AuthException {
       throw const MapSessionExpiredFailure();
     } catch (e) {
