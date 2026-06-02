@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../friend/domain/entities/friend_entity.dart';
 import '../../../friend/presentation/providers/friend_providers.dart';
+import '../../domain/entities/location_input.dart';
 import '../../domain/entities/midpoint_result_entity.dart';
 import '../../domain/entities/place_entity.dart';
 import '../providers/map_providers.dart';
@@ -657,12 +659,134 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
     );
   }
 
+  /// 직접 입력 모드의 locations 빌드 (currentUser + 친구)
+  List<LocationInput> _buildDirectLocations(
+      String myNickname, String friendNickname) {
+    final myId =
+        Supabase.instance.client.auth.currentUser?.id ?? 'me';
+    final friendId = widget.friendId ?? 'friend';
+    return [
+      LocationInput(userId: myId, nickname: myNickname, address: _myLocation),
+      LocationInput(
+          userId: friendId,
+          nickname: friendNickname,
+          address: _friendLocation),
+    ];
+  }
+
   // ── Step 1: 결과 화면 ──────────────────────────────────────────────
   Widget _buildResultStep() {
+    // Mode A: appointmentId 있으면 기존 provider 사용
     if (widget.appointmentId != null) {
       return _buildRealResultStep(widget.appointmentId!);
     }
+    // Mode B: 직접 입력 → 새 midpointDirectProvider 사용
+    if (_myLocation.isNotEmpty && _friendLocation.isNotEmpty) {
+      return _buildDirectResultStep();
+    }
     return _buildMockResultStep();
+  }
+
+  /// Mode B 결과 화면 — midpointDirectProvider 사용
+  Widget _buildDirectResultStep() {
+    // 친구 정보 가져오기
+    final friendsAsync =
+        ref.watch(friendsProvider(FriendSortType.alphabetical));
+    final friendNickname = friendsAsync.maybeWhen(
+      data: (list) =>
+          list
+              .where((f) => f.friendId == widget.friendId)
+              .firstOrNull
+              ?.friendProfile
+              .nickname ??
+          '친구',
+      orElse: () => '친구',
+    );
+
+    final myNickname =
+        Supabase.instance.client.auth.currentUser?.email?.split('@').first ??
+            '나';
+
+    final locations = _buildDirectLocations(myNickname, friendNickname);
+    final midpointAsync = ref.watch(midpointDirectProvider(locations));
+
+    return midpointAsync.when(
+      loading: () => const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('중간지점 계산 중...', style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      ),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              Text('중간지점을 계산할 수 없어요\n$e',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => setState(() => _step = 0),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C6AFA),
+                    foregroundColor: Colors.white),
+                child: const Text('다시 입력하기'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (midpoint) {
+        final recommendAsync = ref.watch(recommendPlaceProvider(midpoint));
+        return recommendAsync.when(
+          loading: () => const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('장소 추천 중...', style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          ),
+          error: (e, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.map_outlined,
+                      size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  const Text('장소 추천을 불러오지 못했어요',
+                      style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => setState(() => _step = 0),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C6AFA),
+                        foregroundColor: Colors.white),
+                    child: const Text('다시 입력하기'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          data: (recommendation) => _buildResultContent(
+            midpoint: midpoint,
+            places: recommendation.places,
+          ),
+        );
+      },
+    );
   }
 
   /// 백엔드 연동 결과 화면 (appointmentId 있을 때)

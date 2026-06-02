@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../domain/entities/location_input.dart';
 import '../../domain/entities/midpoint_result_entity.dart';
 import '../models/midpoint_result_model.dart';
 import '../models/recommendation_result_model.dart';
@@ -18,6 +19,22 @@ class MapRemoteDataSourceImpl implements MapRemoteDataSource {
     final data = res.data;
     if (data is! Map<String, dynamic>) {
       throw Exception('calculate-midpoint: unexpected response type — $data');
+    }
+    return MidpointResultModel.fromJson(data);
+  }
+
+  @override
+  Future<MidpointResultModel> calculateMidpointDirect(
+      List<LocationInput> locations) async {
+    final res = await _client.functions.invoke(
+      'calculate-midpoint',
+      body: {
+        'locations': locations.map((l) => l.toJson()).toList(),
+      },
+    );
+    final data = res.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception('calculate-midpoint(direct): unexpected response — $data');
     }
     return MidpointResultModel.fromJson(data);
   }

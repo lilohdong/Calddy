@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../domain/entities/location_input.dart';
 import '../../domain/entities/midpoint_result_entity.dart';
 import '../../domain/entities/recommendation_result_entity.dart';
 import '../../domain/repositories/map_repository.dart';
@@ -13,6 +14,11 @@ class MapRepositoryImpl implements MapRepository {
   @override
   Future<MidpointResultEntity> calculateMidpoint(String appointmentId) =>
       _guard(() => _dataSource.calculateMidpoint(appointmentId));
+
+  @override
+  Future<MidpointResultEntity> calculateMidpointDirect(
+          List<LocationInput> locations) =>
+      _guard(() => _dataSource.calculateMidpointDirect(locations));
 
   @override
   Future<RecommendationResultEntity> recommendPlace(
