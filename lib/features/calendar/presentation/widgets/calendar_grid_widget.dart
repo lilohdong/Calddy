@@ -175,7 +175,6 @@ class CalendarGridWidget extends StatelessWidget {
               final cellHeight = constraints.maxHeight / weeks.length;
 
               return Container(
-                // 배경색이 gap 사이로 드러나며 구분선 역할
                 color: const Color(0xFFE0E0E0),
                 child: Column(
                   children: weeks.map((weekDays) {
