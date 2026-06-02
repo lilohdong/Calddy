@@ -103,16 +103,9 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
     try {
       thumbnailUrl = await _captureAndUploadThumbnail(currentUserId);
     } catch (e) {
-      // 썸네일 실패는 비치명적 — 계속 진행, 사용자에게 알림
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('썸네일 저장 실패: $e'),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      // 썸네일 실패는 비치명적 — 드로잉 데이터는 정상 저장됨
+      // (버킷 미생성·네트워크 오류 등 인프라 문제일 경우 조용히 넘김)
+      debugPrint('[Drawing] 썸네일 업로드 실패 (무시): $e');
     }
 
     setState(() => _isLoading = true);
