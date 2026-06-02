@@ -94,27 +94,30 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
   }
 
   Future<void> _save() async {
+    // ⚠️ 썸네일 캡처는 setState 전에 실행해야 함
+    // setState → rebuild 예약 → _canvasKey.currentContext stale 위험
+    final currentUserId =
+        Supabase.instance.client.auth.currentUser?.id ?? '';
+
+    String? thumbnailUrl;
+    try {
+      thumbnailUrl = await _captureAndUploadThumbnail(currentUserId);
+    } catch (e) {
+      // 썸네일 실패는 비치명적 — 계속 진행, 사용자에게 알림
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('썸네일 저장 실패: $e'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+
     setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
-      final currentUserId =
-          Supabase.instance.client.auth.currentUser?.id ?? '';
-
-      // 썸네일 캡처·업로드 — 실패해도 드로잉 저장은 항상 진행
-      String? thumbnailUrl;
-      try {
-        thumbnailUrl = await _captureAndUploadThumbnail(currentUserId);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('썸네일 업로드 실패 (드로잉은 저장됩니다): $e'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        // thumbnailUrl = null 로 저장 계속 진행
-      }
 
       await ref.read(saveDrawingUseCaseProvider).call(
         SaveDrawingParams(
@@ -141,11 +144,14 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
           SnackBar(content: Text(e.message), backgroundColor: Colors.red),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      // catch (_) 대신 catch (e) 로 실제 에러 메시지 표시
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('저장에 실패했습니다.'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('저장 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
