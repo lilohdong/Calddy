@@ -52,6 +52,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   String _color = '#7C6AFA';
   bool _isLoading = false;
   bool _isDday = false;
+  EventVisibility _visibility = EventVisibility.public;
 
   // 알림
   _AlarmMode _alarmMode = _AlarmMode.sameDay9am;
@@ -156,7 +157,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
             : _memoCtrl.text.trim(),
         notifyBeforeMin: _computeNotifyBeforeMin(),
         status: EventStatus.pending,
-        visibility: EventVisibility.public,
+        visibility: _visibility,
         createdAt: now,
         recurrenceType: _recurrenceType,
         recurrenceDays: recurrenceDays,
@@ -584,6 +585,81 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                     activeTrackColor: const Color(0xFF7C6AFA),
                     inactiveThumbColor: Colors.white,
                     inactiveTrackColor: Colors.grey.shade300,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // 공개 범위
+            _SettingCard(
+              icon: _visibility == EventVisibility.public
+                  ? Icons.lock_open_outlined
+                  : Icons.lock_outlined,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _visibility == EventVisibility.public ? '공개' : '비공개',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      Text(
+                        _visibility == EventVisibility.public
+                            ? '친구 캘린더에 표시됩니다'
+                            : '나만 볼 수 있습니다',
+                        style: TextStyle(
+                            fontSize: 11, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _visibility = _visibility == EventVisibility.public
+                          ? EventVisibility.private
+                          : EventVisibility.public;
+                    }),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 72,
+                      height: 32,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: _visibility == EventVisibility.public
+                            ? const Color(0xFF7C6AFA)
+                            : Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Stack(
+                        children: [
+                          AnimatedAlign(
+                            duration: const Duration(milliseconds: 200),
+                            alignment: _visibility == EventVisibility.public
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                _visibility == EventVisibility.public
+                                    ? Icons.lock_open_rounded
+                                    : Icons.lock_rounded,
+                                size: 14,
+                                color: _visibility == EventVisibility.public
+                                    ? const Color(0xFF7C6AFA)
+                                    : Colors.grey.shade500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),

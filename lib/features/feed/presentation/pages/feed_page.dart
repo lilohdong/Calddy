@@ -140,11 +140,11 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   }
 
   void _showReportSheet(BuildContext ctx, String postId) {
-    showModalBottomSheet<void>(
-      context: ctx,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ReportSheet(postId: postId),
+    Navigator.of(ctx).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => _ReportSheet(postId: postId),
+      ),
     );
   }
 
@@ -826,11 +826,12 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
   bool _done = false;
 
   static const _reasons = [
-    '스팸 또는 광고',
-    '혐오 발언 또는 폭력',
-    '부적절한 이미지',
-    '허위 정보',
-    '기타',
+    ('스팸 또는 광고', '원치 않는 광고, 홍보, 도배 콘텐츠'),
+    ('혐오 발언 또는 차별', '누군가를 비하하거나 차별하는 내용'),
+    ('폭력 또는 위험한 내용', '폭력, 자해, 위험 행위 등을 조장하는 내용'),
+    ('불법 또는 규제 대상 콘텐츠', '불법 상품, 행위, 규제 대상 정보 등'),
+    ('개인정보 노출', '타인의 개인정보를 게시한 경우'),
+    ('기타', '기타 문제'),
   ];
 
   Future<void> _submit() async {
@@ -858,106 +859,177 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return _BottomSheetWrapper(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-        child: _done ? _buildDone() : _buildForm(),
+    if (_done) return _buildDone(context);
+    return _buildForm(context);
+  }
+
+  Widget _buildDone(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text(
+          '신고 완료',
+          style: TextStyle(
+              color: Colors.black87,
+              fontSize: 16,
+              fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          children: [
+            const Spacer(),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: _kPurpleLight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded, color: _kPurple, size: 44),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              '신고가 접수되었습니다',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1A2E)),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '신고해주셔서 감사합니다.\n검토 후 커뮤니티 가이드에 따라 조치하겠습니다.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade500,
+                  height: 1.5),
+            ),
+            const Spacer(),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kPurple,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    child: const Text('확인',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildDone() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SizedBox(height: 12),
-        const Icon(Icons.check_circle_rounded, color: _kPurple, size: 52),
-        const SizedBox(height: 14),
-        const Text(
-          '신고가 접수되었습니다',
+  Widget _buildForm(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소',
+              style: TextStyle(color: Colors.black54, fontSize: 15)),
+        ),
+        leadingWidth: 60,
+        title: const Text(
+          '신고',
           style: TextStyle(
+              color: Colors.black87,
               fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1A2E)),
+              fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 8),
-        Text(
-          '검토 후 처리될 예정이에요.',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-        ),
-        const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => context.pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kPurple,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('확인'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildForm() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '신고 이유를 선택해주세요',
-          style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1A2E)),
-        ),
-        const SizedBox(height: 14),
-        ..._reasons.map((r) => _ReasonTile(
-              reason: r,
-              selected: _selected == r,
-              onTap: () => setState(() => _selected = r),
-            )),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton(
+        centerTitle: true,
+        actions: [
+          TextButton(
             onPressed: (_selected != null && !_loading) ? _submit : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kPurple,
-              disabledBackgroundColor: _kPurple.withValues(alpha: 0.4),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
             child: _loading
                 ? const SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: 18,
+                    height: 18,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                        strokeWidth: 2, color: _kPurple),
                   )
-                : const Text('신고하기',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
+                : Text(
+                    '다음',
+                    style: TextStyle(
+                      color: _selected != null ? _kPurple : Colors.grey.shade400,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
           ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '이 게시물을 신고하는 이유는?',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1A2E)),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '신고 내용은 Calddy의 커뮤니티 가이드에 따라 검토됩니다.',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 20),
+            ..._reasons.map((item) => _RadioReasonTile(
+                  title: item.$1,
+                  subtitle: item.$2,
+                  selected: _selected == item.$1,
+                  onTap: () => setState(() => _selected = item.$1),
+                )),
+            const SizedBox(height: 16),
+            Text(
+              '허위 신고 시 서비스 이용에 제한이 있을 수 있습니다.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
+
 }
 
-class _ReasonTile extends StatelessWidget {
-  const _ReasonTile({
-    required this.reason,
+class _RadioReasonTile extends StatelessWidget {
+  const _RadioReasonTile({
+    required this.title,
+    required this.subtitle,
     required this.selected,
     required this.onTap,
   });
 
-  final String reason;
+  final String title;
+  final String subtitle;
   final bool selected;
   final VoidCallback onTap;
 
@@ -965,32 +1037,45 @@ class _ReasonTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFFEDE9FF) : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? _kPurple : Colors.grey.shade200,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                reason,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: selected ? _kPurple : const Color(0xFF333333),
-                  fontWeight:
-                      selected ? FontWeight.w600 : FontWeight.normal,
+            Container(
+              width: 22,
+              height: 22,
+              margin: const EdgeInsets.only(top: 2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? _kPurple : Colors.grey.shade300,
+                  width: selected ? 6 : 2,
                 ),
+                color: Colors.white,
               ),
             ),
-            if (selected)
-              const Icon(Icons.check_rounded, color: _kPurple, size: 18),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1A2E)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                        fontSize: 13, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
