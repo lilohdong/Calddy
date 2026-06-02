@@ -49,8 +49,7 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
   // 친구 태그
   FriendEntity? _taggedFriend;
 
-  // 장소
-  String _locationText = '';
+  // 장소 (값은 _locationCtrl.text에서 직접 읽음)
   final _locationCtrl = TextEditingController();
 
   @override
@@ -111,6 +110,9 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                 id: '',
                 userId: currentUserId,
                 title: _titleCtrl.text.trim(),
+                location: _locationCtrl.text.trim().isEmpty
+                    ? null
+                    : _locationCtrl.text.trim(),
                 startAt: _startDate!,
                 endAt: _endDate!,
                 color: _color,
@@ -358,7 +360,6 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                 Expanded(
                   child: TextField(
                     controller: _locationCtrl,
-                    onChanged: (v) => setState(() => _locationText = v),
                     decoration: const InputDecoration(
                       hintText: '장소를 입력하세요',
                       hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
@@ -377,10 +378,7 @@ class _RangeCreatePageState extends ConsumerState<RangeCreatePage> {
                         extra: _taggedFriend!.friendId,
                       );
                       if (result != null && mounted) {
-                        setState(() {
-                          _locationText = result;
-                          _locationCtrl.text = result;
-                        });
+                        _locationCtrl.text = result;
                       }
                     },
                     style: TextButton.styleFrom(

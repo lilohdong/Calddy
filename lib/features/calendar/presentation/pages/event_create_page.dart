@@ -187,7 +187,8 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
       ref.invalidate(calendarDataProvider);
 
       if (mounted) {
-        if (inviteeIds.isNotEmpty) {
+        // createdEvent == null이면 반복 이벤트 → 약속 미생성이므로 스낵바 표시 안 함
+        if (inviteeIds.isNotEmpty && createdEvent != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
