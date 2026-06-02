@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -47,9 +49,16 @@ final recommendPlaceProvider = FutureProvider.autoDispose
 });
 
 /// Mode B: 주소 직접 입력 → 중간지점 계산 (appointment 없이 사용)
-/// key: locations 리스트를 JSON 문자열로 변환한 값 (FutureProvider family key)
+///
+/// ⚠️  family 키로 List를 쓰면 매 build마다 새 객체 → provider 재시작 무한루프 발생.
+///     String(JSON 직렬화)을 키로 사용해 동등성 문제를 회피함.
+///
+/// 사용: midpointDirectProvider(LocationInput.listToKey(locations))
 final midpointDirectProvider = FutureProvider.autoDispose
-    .family<MidpointResultEntity, List<LocationInput>>((ref, locations) {
+    .family<MidpointResultEntity, String>((ref, locationsJson) {
+  final locations = (jsonDecode(locationsJson) as List)
+      .map((e) => LocationInput.fromJson(e as Map<String, dynamic>))
+      .toList();
   return ref
       .read(_calculateMidpointDirectUseCaseProvider)
       .call(CalculateMidpointDirectParams(locations: locations));

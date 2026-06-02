@@ -708,7 +708,9 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
             '나';
 
     final locations = _buildDirectLocations(myNickname, friendNickname);
-    final midpointAsync = ref.watch(midpointDirectProvider(locations));
+    // String 키 사용 — List는 참조 동등성이라 매 build마다 재시작됨
+    final locationsKey = LocationInput.listToKey(locations);
+    final midpointAsync = ref.watch(midpointDirectProvider(locationsKey));
 
     return midpointAsync.when(
       loading: () => const Center(
