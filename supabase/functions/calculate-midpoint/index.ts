@@ -115,11 +115,6 @@ Deno.serve(async (req: Request) => {
   if (!authHeader) return errorResponse('Authorization header missing', 401);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
 
   const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
     global: { headers: { Authorization: authHeader } },
@@ -142,9 +137,16 @@ Deno.serve(async (req: Request) => {
   }
 
   let withLocation: ParticipantCoord[] = [];
+  // Mode A 전용: 응답에 포함할 전체 참여자 목록 (위치 없는 참여자도 포함)
+  let allParticipantsMeta: { id: string; nickname: string }[] = [];
 
   // ── Mode A: appointment_id로 profiles 테이블에서 좌표 조회 ─────────────
   if (appointment_id) {
+    // Mode A에서만 adminClient 필요
+    const adminClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+      auth: { persistSession: false },
+    });
+
     const { data: appointment, error: apptError } = await adminClient
       .from('appointments')
       .select('creator_id, appointment_invites(invitee_id, status)')
@@ -182,6 +184,13 @@ Deno.serve(async (req: Request) => {
       return errorResponse('Failed to fetch participant profiles', 500);
     }
 
+    // 응답용: 위치 여부와 무관하게 전체 참여자 보존 (원래 동작 유지)
+    allParticipantsMeta = (profiles as ProfileRow[]).map((p) => ({
+      id: p.id,
+      nickname: p.nickname,
+    }));
+
+    // 계산용: 좌표 있는 참여자만
     withLocation = (profiles as ProfileRow[])
       .filter((p) => p.home_lat != null && p.home_lng != null)
       .map((p) => ({ id: p.id, nickname: p.nickname, home_lat: p.home_lat!, home_lng: p.home_lng! }));
@@ -203,15 +212,28 @@ Deno.serve(async (req: Request) => {
     const geocoded = await Promise.all(
       directLocations.map(async (loc) => {
         const coords = await geocodeAddress(kakaoKey, loc.address);
-        return coords ? { id: loc.userId, nickname: loc.nickname, home_lat: coords.lat, home_lng: coords.lng } : null;
+        return { loc, coords };
       }),
     );
 
-    withLocation = geocoded.filter((p): p is ParticipantCoord => p !== null);
-
-    if (withLocation.length === 0) {
-      return errorResponse('Could not geocode any of the provided addresses', 422);
+    // 지오코딩 실패한 주소 목록 수집 → 부분 실패 시 명확한 에러 반환
+    const failed = geocoded.filter(({ coords }) => coords === null).map(({ loc }) => loc.address);
+    if (failed.length > 0) {
+      return errorResponse(
+        `주소를 찾을 수 없어요: ${failed.join(', ')}. 더 구체적인 주소나 역 이름을 입력해주세요.`,
+        422,
+      );
     }
+
+    withLocation = geocoded.map(({ loc, coords }) => ({
+      id: loc.userId,
+      nickname: loc.nickname,
+      home_lat: coords!.lat,
+      home_lng: coords!.lng,
+    }));
+
+    // Mode B는 입력한 사람이 곧 전체 참여자
+    allParticipantsMeta = withLocation.map((p) => ({ id: p.id, nickname: p.nickname }));
   }
 
   // Step 1: 좌표 평균
@@ -263,7 +285,8 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const participants = withLocation.map((p) => ({
+  // allParticipantsMeta 기반으로 빌드 — Mode A는 위치 없는 참여자도 포함 (원래 동작 유지)
+  const participants = allParticipantsMeta.map((p) => ({
     userId: p.id,
     nickname: p.nickname,
     travelMinutes: finalTravelTimes.get(p.id) ?? null,
