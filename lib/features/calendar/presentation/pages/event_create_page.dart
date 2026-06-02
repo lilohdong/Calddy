@@ -62,17 +62,20 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   int? _recurrenceWeekday;
   int? _recurrenceMonthDay;
 
-  // 친구 태그 — 합쳐보기 프리필 (다중) + 개별 선택 (단일)
+  // 친구 태그 — 합쳐보기 프리필 (다중) + 개별 선택 (다중)
   List<String> _prefilledIds = [];
   List<String> _prefilledNames = [];
-  FriendEntity? _taggedFriend; // 개별 선택 친구 (AI 중간지점용)
+  final List<FriendEntity> _taggedFriends = []; // 개별 선택 친구들 (다중)
 
   /// 약속 초대 대상 IDs (프리필 + 개별 선택 합산, 중복 제거)
   List<String> get _allInviteeIds {
-    final all = {..._prefilledIds};
-    if (_taggedFriend != null) all.add(_taggedFriend!.friendId);
+    final all = {..._prefilledIds, ..._taggedFriends.map((f) => f.friendId)};
     return all.toList();
   }
+
+  /// 현재 태그된 모든 친구 ID (중복 제거용)
+  List<String> get _allTaggedIds =>
+      {..._prefilledIds, ..._taggedFriends.map((f) => f.friendId)}.toList();
 
   /// 합쳐보기에서 왔는지 여부
   bool get _isFromMerge => _prefilledIds.isNotEmpty;
@@ -341,9 +344,9 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => _FriendPickerSheet(
-        excludeIds: _prefilledIds,
+        excludeIds: _allTaggedIds,
         onSelected: (friend) {
-          setState(() => _taggedFriend = friend);
+          setState(() => _taggedFriends.add(friend));
           context.pop();
         },
       ),
@@ -502,12 +505,12 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                   // AI 중간지점 버튼
                   // - 합쳐보기 모드: 프리필 친구 IDs 전달
                   // - 일반 모드: 단일 태그 친구 있을 때만
-                  if (_isFromMerge || _taggedFriend != null)
+                  if (_allInviteeIds.isNotEmpty)
                     TextButton(
                       onPressed: () async {
-                        final extra = _isFromMerge
-                            ? _prefilledIds          // List<String>
-                            : _taggedFriend!.friendId; // String
+                        final extra = _allInviteeIds.length == 1
+                            ? _allInviteeIds.first   // String (단일)
+                            : _allInviteeIds;         // List<String> (다중)
                         final result = await context.push<String>(
                           AppRoutes.aiMidpoint,
                           extra: extra,
@@ -608,38 +611,39 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   }
 
   // ── 친구 태그 섹션 빌더 ────────────────────────────────────────────
+  // 합쳐보기·일반 모드 공통: Wrap 칩 + 추가 버튼으로 다중 친구 태그
   Widget _buildFriendSection() {
-    // 합쳐보기에서 왔을 때: 프리필 친구들 칩 + 추가 친구 선택 가능
-    if (_isFromMerge) {
-      return _SettingCard(
-        icon: Icons.people_outline,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 프리필 친구 칩들 (삭제 가능)
-            Wrap(
+    final hasAny = _prefilledIds.isNotEmpty || _taggedFriends.isNotEmpty;
+
+    return _SettingCard(
+      icon: Icons.people_outline,
+      child: hasAny
+          ? Wrap(
               spacing: 8,
               runSpacing: 6,
               children: [
+                // 합쳐보기 프리필 친구 칩들
                 ..._prefilledNames.asMap().entries.map((entry) {
                   final idx = entry.key;
                   final name = entry.value;
                   return _FriendChip(
                     name: name,
-                    onRemove: () {
-                      setState(() {
-                        _prefilledIds.removeAt(idx);
-                        _prefilledNames.removeAt(idx);
-                      });
-                    },
+                    onRemove: () => setState(() {
+                      _prefilledIds.removeAt(idx);
+                      _prefilledNames.removeAt(idx);
+                    }),
                   );
                 }),
-                // 개별 선택 친구 (추가)
-                if (_taggedFriend != null)
-                  _FriendChip(
-                    name: _taggedFriend!.friendProfile.nickname ?? '?',
-                    onRemove: () => setState(() => _taggedFriend = null),
-                  ),
+                // 개별 선택 친구 칩들
+                ..._taggedFriends.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final friend = entry.value;
+                  return _FriendChip(
+                    name: friend.friendProfile.nickname ?? '?',
+                    onRemove: () =>
+                        setState(() => _taggedFriends.removeAt(idx)),
+                  );
+                }),
                 // 친구 추가 버튼
                 GestureDetector(
                   onTap: _showFriendPicker,
@@ -649,69 +653,27 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: Colors.grey.shade300, width: 1),
+                      border:
+                          Border.all(color: Colors.grey.shade300, width: 1),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.add,
-                            size: 14, color: Colors.grey.shade500),
+                        Icon(Icons.add, size: 14, color: Colors.grey.shade500),
                         const SizedBox(width: 4),
                         Text('추가',
                             style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500)),
+                                fontSize: 12, color: Colors.grey.shade500)),
                       ],
                     ),
                   ),
                 ),
               ],
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 일반 모드: 기존 단일 친구 선택
-    return _SettingCard(
-      icon: Icons.person_add_alt_outlined,
-      onTap: _taggedFriend == null ? _showFriendPicker : null,
-      child: _taggedFriend == null
-          ? const Text('친구를 태그하세요',
-              style: TextStyle(fontSize: 14, color: Colors.grey))
-          : Row(
-              children: [
-                if (_taggedFriend!.friendProfile.avatarUrl != null)
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundImage: NetworkImage(
-                        _taggedFriend!.friendProfile.avatarUrl!),
-                  )
-                else
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: const Color(0xFF7C6AFA)
-                        .withValues(alpha: 0.2),
-                    child: Text(
-                      (_taggedFriend!.friendProfile.nickname ?? '?')[0],
-                      style: const TextStyle(
-                          fontSize: 10,
-                          color: Color(0xFF7C6AFA),
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                Text(_taggedFriend!.friendProfile.nickname ?? '',
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => setState(() => _taggedFriend = null),
-                  child: const Icon(Icons.close,
-                      size: 16, color: Colors.grey),
-                ),
-              ],
+            )
+          : GestureDetector(
+              onTap: _showFriendPicker,
+              child: const Text('친구를 태그하세요',
+                  style: TextStyle(fontSize: 14, color: Colors.grey)),
             ),
     );
   }
