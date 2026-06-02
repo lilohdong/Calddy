@@ -265,7 +265,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                         : null,
                     onTap: () {
                       setState(() => _alarmMode = opt.$1);
-                      Navigator.of(ctx).pop();
+                      ctx.pop();
                     },
                   )),
               ListTile(
@@ -300,7 +300,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                       _alarmMode = _AlarmMode.custom;
                       _customAlarmTime = picked;
                     });
-                    if (ctx.mounted) Navigator.of(ctx).pop();
+                    if (ctx.mounted) ctx.pop();
                   }
                 },
               ),
@@ -344,7 +344,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
         excludeIds: _prefilledIds,
         onSelected: (friend) {
           setState(() => _taggedFriend = friend);
-          Navigator.of(context).pop();
+          context.pop();
         },
       ),
     );
@@ -1090,7 +1090,7 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
                 child: ElevatedButton(
                   onPressed: () {
                     widget.onChanged(_type, _weekday, _monthDay);
-                    Navigator.of(context).pop();
+                    context.pop();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF7C6AFA),

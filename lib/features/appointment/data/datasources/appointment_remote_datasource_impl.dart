@@ -44,10 +44,17 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
     if (raw is List && raw.isNotEmpty) {
       final first = raw.first;
       if (first is String) return first;
-      if (first is Map) return first['id'] as String;
+      if (first is Map) {
+        final id = first['id'];
+        if (id is String) return id;
+      }
     }
-    if (raw is Map) return raw['id'] as String;
-    throw Exception('create_appointment_with_invites: unexpected result type ${raw.runtimeType} — $raw');
+    if (raw is Map) {
+      final id = raw['id'];
+      if (id is String) return id;
+    }
+    throw Exception(
+        'create_appointment_with_invites: id 파싱 실패 — type=${raw.runtimeType}, value=$raw');
   }
 
   @override

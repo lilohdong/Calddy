@@ -50,6 +50,7 @@ class _AiMidpointPageState extends ConsumerState<AiMidpointPage> {
   bool get _canCalculate {
     if (_myLocation.trim().isEmpty) return false;
     if (widget.appointmentId != null) return true; // 백엔드 모드: 내 위치만 있으면 됨
+    if (_isMulti) return true; // 다중 친구 모드: 내 위치만 있으면 계산 (친구 입력 UI 미구현)
     return _friendInputManually && _friendLocation.trim().isNotEmpty;
   }
 
