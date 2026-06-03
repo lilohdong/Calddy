@@ -39,6 +39,19 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }
 
   @override
+  Future<void> markAllAsRead() async {
+    try {
+      await _remoteDataSource.markAllAsRead();
+    } on AuthException {
+      throw const NotificationSessionExpiredFailure();
+    } on PostgrestException catch (e) {
+      throw NotificationDatabaseFailure(e.message);
+    } catch (_) {
+      throw const NotificationUpdateFailure();
+    }
+  }
+
+  @override
   Future<void> deleteNotification(String notificationId) async {
     try {
       await _remoteDataSource.deleteNotification(notificationId);

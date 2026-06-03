@@ -7,7 +7,9 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/widgets/calddy_logo.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../notification/domain/entities/notification_entity.dart';
+import '../../../notification/domain/usecases/mark_notification_read_use_case.dart';
 import '../../../notification/presentation/providers/notification_providers.dart';
+import '../../../../core/usecase/usecase.dart';
 import '../../../report/domain/entities/report_entity.dart';
 import '../../../report/domain/usecases/report_use_case.dart';
 import '../../../report/presentation/providers/report_providers.dart';
@@ -1106,7 +1108,7 @@ class _NotificationPopover extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 꼬리 삼각형 — 벨 아이콘 아래에 오도록 우측 정렬
+              // 꼬리 삼각형
               const Padding(
                 padding: EdgeInsets.only(right: 18),
                 child: CustomPaint(
@@ -1116,8 +1118,10 @@ class _NotificationPopover extends ConsumerWidget {
               ),
               // 패널
               Container(
-                width: mq.size.width * 0.72,
-                constraints: const BoxConstraints(maxHeight: 400),
+                width: mq.size.width * 0.82,
+                constraints: BoxConstraints(
+                  maxHeight: mq.size.height * 0.55,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -1133,36 +1137,108 @@ class _NotificationPopover extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
-                      child: Text(
-                        '알림',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A2E),
-                        ),
+                    // ── 헤더 ───────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
+                      child: Row(
+                        children: [
+                          const Text(
+                            '알림',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A2E),
+                            ),
+                          ),
+                          const Spacer(),
+                          // 전체 읽기
+                          notifAsync.maybeWhen(
+                            data: (notifs) {
+                              final hasUnread =
+                                  notifs.any((n) => !n.isRead);
+                              return TextButton(
+                                onPressed: hasUnread
+                                    ? () async {
+                                        await ref
+                                            .read(markAllNotificationsReadProvider)
+                                            .call();
+                                        ref.invalidate(notificationsProvider);
+                                      }
+                                    : null,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(
+                                  '전체 읽기',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: hasUnread
+                                        ? _kPurple
+                                        : Colors.grey.shade400,
+                                  ),
+                                ),
+                              );
+                            },
+                            orElse: () => const SizedBox(),
+                          ),
+                          // 구분선
+                          Text('|',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade300)),
+                          // 전체 삭제
+                          TextButton(
+                            onPressed: () async {
+                              await ref
+                                  .read(
+                                      deleteAllNotificationsUseCaseProvider)
+                                  .call(NoParams());
+                              ref.invalidate(notificationsProvider);
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              '전체 삭제',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const Divider(height: 1),
+                    // ── 목록 ───────────────────────────────────────
                     Flexible(
                       child: notifAsync.when(
                         loading: () => const Padding(
                           padding: EdgeInsets.all(24),
                           child: Center(
-                              child: CircularProgressIndicator(color: _kPurple)),
+                              child: CircularProgressIndicator(
+                                  color: _kPurple)),
                         ),
                         error: (_, __) => const Padding(
                           padding: EdgeInsets.all(24),
-                          child: Center(child: Text('알림을 불러올 수 없어요')),
+                          child:
+                              Center(child: Text('알림을 불러올 수 없어요')),
                         ),
                         data: (notifs) {
                           if (notifs.isEmpty) {
                             return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 28),
+                              padding: EdgeInsets.symmetric(vertical: 32),
                               child: Center(
                                 child: Text('새로운 알림이 없어요',
-                                    style: TextStyle(color: Colors.grey)),
+                                    style:
+                                        TextStyle(color: Colors.grey)),
                               ),
                             );
                           }
@@ -1172,7 +1248,30 @@ class _NotificationPopover extends ConsumerWidget {
                             itemCount: notifs.length,
                             separatorBuilder: (_, __) => const Divider(
                                 height: 1, indent: 16, endIndent: 16),
-                            itemBuilder: (_, i) => _NotifTile(notif: notifs[i]),
+                            itemBuilder: (_, i) => _NotifTile(
+                              notif: notifs[i],
+                              onTap: () async {
+                                // 읽음 처리
+                                if (!notifs[i].isRead) {
+                                  await ref
+                                      .read(
+                                          markNotificationReadUseCaseProvider)
+                                      .call(MarkNotificationReadParams(
+                                          notificationId: notifs[i].id));
+                                  ref.invalidate(notificationsProvider);
+                                }
+                                // 팝오버 닫기
+                                if (context.mounted) {
+                                  Navigator.of(context).pop();
+                                }
+                                // 페이지 이동
+                                final route =
+                                    _routeFor(notifs[i]);
+                                if (route != null && context.mounted) {
+                                  context.push(route);
+                                }
+                              },
+                            ),
                           );
                         },
                       ),
@@ -1185,6 +1284,26 @@ class _NotificationPopover extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// 알림 타입 + relatedId → 이동할 경로
+  String? _routeFor(NotificationEntity notif) {
+    switch (notif.type) {
+      case NotificationType.friendRequest:
+        return AppRoutes.friends;
+      case NotificationType.appointmentInvite:
+      case NotificationType.appointmentAccepted:
+      case NotificationType.appointmentRejected:
+      case NotificationType.suggestNewDate:
+        final id = notif.relatedId;
+        return id != null
+            ? AppRoutes.appointmentDetailPath(id)
+            : AppRoutes.home;
+      case NotificationType.postLiked:
+      case NotificationType.postCommented:
+        final id = notif.relatedId;
+        return id != null ? AppRoutes.postDetailPath(id) : AppRoutes.feed;
+    }
   }
 }
 
@@ -1206,44 +1325,97 @@ class _PopoverTailPainter extends CustomPainter {
 }
 
 class _NotifTile extends StatelessWidget {
-  const _NotifTile({required this.notif});
+  const _NotifTile({required this.notif, required this.onTap});
 
   final NotificationEntity notif;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      leading: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: notif.isRead
-              ? Colors.grey.shade100
-              : const Color(0xFFEDE9FF),
-          shape: BoxShape.circle,
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 아이콘
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: notif.isRead
+                    ? Colors.grey.shade100
+                    : const Color(0xFFEDE9FF),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _notifIcon(notif.type),
+                color: notif.isRead ? Colors.grey.shade400 : _kPurple,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // 텍스트
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    notif.title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: notif.isRead
+                          ? FontWeight.normal
+                          : FontWeight.w600,
+                      color: const Color(0xFF1A1A2E),
+                    ),
+                  ),
+                  if (notif.body.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      notif.body,
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 3),
+                  Text(
+                    _timeAgo(notif.createdAt),
+                    style: TextStyle(
+                        fontSize: 11, color: Colors.grey.shade400),
+                  ),
+                ],
+              ),
+            ),
+            // 미읽음 도트
+            if (!notif.isRead)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, left: 8),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: _kPurple,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
         ),
-        child: Icon(
-          _notifIcon(notif.type),
-          color: notif.isRead ? Colors.grey : _kPurple,
-          size: 20,
-        ),
-      ),
-      title: Text(
-        notif.title,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: notif.isRead ? FontWeight.normal : FontWeight.w600,
-          color: const Color(0xFF1A1A2E),
-        ),
-      ),
-      subtitle: Text(
-        notif.body,
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
       ),
     );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return '방금';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
+    if (diff.inHours < 24) return '${diff.inHours}시간 전';
+    if (diff.inDays < 7) return '${diff.inDays}일 전';
+    return '${dt.month}/${dt.day}';
   }
 
   IconData _notifIcon(NotificationType type) {

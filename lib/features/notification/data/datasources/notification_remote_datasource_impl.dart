@@ -41,6 +41,15 @@ class NotificationRemoteDataSourceImpl implements NotificationRemoteDataSource {
   }
 
   @override
+  Future<void> markAllAsRead() async {
+    await _client
+        .from(SupabaseConstants.notifications)
+        .update({'is_read': true})
+        .eq('user_id', _currentUserId)
+        .eq('is_read', false);
+  }
+
+  @override
   Future<void> deleteNotification(String notificationId) async {
     await _client
         .from(SupabaseConstants.notifications)

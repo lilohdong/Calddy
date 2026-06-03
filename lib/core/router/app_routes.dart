@@ -48,6 +48,8 @@ abstract class AppRoutes {
   static const String appointmentCreate  = '/home/appointment/create';
   static const String appointmentDetail  = '/home/appointment/:appointmentId';
 
+  static String appointmentDetailPath(String id) => '/home/appointment/$id';
+
   // ── Map ─────────────────────────────────────────────────────
   static const String placePicker      = '/map/place-picker';
 
