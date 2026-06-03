@@ -615,51 +615,17 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                       ),
                     ],
                   ),
-                  GestureDetector(
-                    onTap: () => setState(() {
-                      _visibility = _visibility == EventVisibility.public
-                          ? EventVisibility.private
-                          : EventVisibility.public;
+                  Switch(
+                    value: _visibility == EventVisibility.public,
+                    onChanged: (v) => setState(() {
+                      _visibility = v
+                          ? EventVisibility.public
+                          : EventVisibility.private;
                     }),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 72,
-                      height: 32,
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: _visibility == EventVisibility.public
-                            ? const Color(0xFF7C6AFA)
-                            : Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Stack(
-                        children: [
-                          AnimatedAlign(
-                            duration: const Duration(milliseconds: 200),
-                            alignment: _visibility == EventVisibility.public
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              width: 26,
-                              height: 26,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                _visibility == EventVisibility.public
-                                    ? Icons.lock_open_rounded
-                                    : Icons.lock_rounded,
-                                size: 14,
-                                color: _visibility == EventVisibility.public
-                                    ? const Color(0xFF7C6AFA)
-                                    : Colors.grey.shade500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    activeThumbColor: Colors.white,
+                    activeTrackColor: const Color(0xFF7C6AFA),
+                    inactiveThumbColor: Colors.white,
+                    inactiveTrackColor: Colors.grey.shade300,
                   ),
                 ],
               ),
