@@ -29,7 +29,7 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
     var filterQuery = _supabase
         .from(SupabaseConstants.posts)
         .select(
-          'id, user_id, event_id, content, image_url, visibility, likes_count, feed_date, created_at',
+          'id, user_id, event_id, content, image_url, visibility, likes_count, feed_date, created_at, profiles(nickname, avatar_url)',
         )
         .eq('feed_date', dateStr);
 
@@ -71,7 +71,7 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
     final result = await _supabase
         .from(SupabaseConstants.posts)
         .select(
-          'id, user_id, event_id, content, image_url, visibility, likes_count, feed_date, created_at',
+          'id, user_id, event_id, content, image_url, visibility, likes_count, feed_date, created_at, profiles(nickname, avatar_url)',
         )
         .eq('id', postId)
         .single();

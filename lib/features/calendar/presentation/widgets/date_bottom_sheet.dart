@@ -116,6 +116,7 @@ class DateBottomSheet extends ConsumerWidget {
                             const SizedBox(height: 8),
                         itemBuilder: (_, i) => EventListTile(
                           event: events[i],
+                          date: date,
                           onTap: () {
                             context.pop();
                             context.push(
@@ -155,13 +156,25 @@ class EventListTile extends ConsumerWidget {
     super.key,
     required this.event,
     required this.onTap,
+    this.date,
   });
 
   final EventEntity event;
   final VoidCallback onTap;
+  /// 현재 선택된 날짜 — null이면 당일 제한 없이 표시
+  final DateTime? date;
 
   String _fmtTime(DateTime dt) =>
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+  /// 오늘 날짜에 해당하는 일정인지 (완료 버튼 노출 조건)
+  bool get _isToday {
+    if (date == null) return true; // date 미전달 시 기본 허용
+    final today = DateTime.now();
+    return date!.year == today.year &&
+        date!.month == today.month &&
+        date!.day == today.day;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -213,7 +226,7 @@ class EventListTile extends ConsumerWidget {
                 ],
               ),
             ),
-            if (!isDone)
+            if (!isDone && _isToday)
               ElevatedButton(
                 onPressed: () async {
                   try {

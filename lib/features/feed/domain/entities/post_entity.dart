@@ -3,6 +3,8 @@ enum PostVisibility { public, private }
 class PostEntity {
   final String id;
   final String userId;
+  final String? authorNickname;
+  final String? authorAvatarUrl;
   final String? eventId;
   final String? content;
   final String? imageUrl;
@@ -15,6 +17,8 @@ class PostEntity {
   const PostEntity({
     required this.id,
     required this.userId,
+    this.authorNickname,
+    this.authorAvatarUrl,
     this.eventId,
     this.content,
     this.imageUrl,

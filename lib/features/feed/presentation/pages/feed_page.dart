@@ -415,7 +415,9 @@ class _PostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = avatarColor(post.userId);
-    final initial = avatarInitial(post.userId);
+    final initial = post.authorNickname?.isNotEmpty == true
+        ? post.authorNickname![0].toUpperCase()
+        : avatarInitial(post.userId);
     final relativeTime = fmtRelative(post.createdAt);
     final isPrivate = post.visibility == PostVisibility.private;
 
@@ -470,9 +472,7 @@ class _PostCard extends StatelessWidget {
                         Row(
                           children: [
                             Text(
-                              post.userId.length > 8
-                                  ? post.userId.substring(0, 8)
-                                  : post.userId,
+                              post.authorNickname ?? '알 수 없음',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
