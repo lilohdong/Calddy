@@ -53,9 +53,11 @@ final deleteAllNotificationsUseCaseProvider =
       ref.watch(notificationRepositoryProvider));
 });
 
-/// 전체 읽음 처리 — usecase 없이 repository 직접 호출 (단순 트리거)
-final markAllNotificationsReadProvider = Provider<Future<void> Function()>((ref) {
-  return () => ref.read(notificationRepositoryProvider).markAllAsRead();
+/// 전체 읽음 처리 — repository 직접 호출
+///
+/// 사용: await ref.read(markAllNotificationsReadProvider);
+final markAllNotificationsReadProvider = FutureProvider.autoDispose<void>((ref) {
+  return ref.read(notificationRepositoryProvider).markAllAsRead();
 });
 
 // ── State Providers ───────────────────────────────────────────────────────────

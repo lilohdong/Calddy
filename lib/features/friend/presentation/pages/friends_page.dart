@@ -134,9 +134,10 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
         ),
         data: (friends) {
           final requests = requestsAsync.valueOrNull ?? [];
+          final requestsLoading = requestsAsync.isLoading;
 
-          // 친구도 없고 요청도 없을 때만 빈 화면
-          if (friends.isEmpty && requests.isEmpty) {
+          // 친구도 없고 요청도 없고 로딩도 아닐 때만 빈 화면
+          if (friends.isEmpty && requests.isEmpty && !requestsLoading) {
             return _EmptyState(
               onAdd: () => context.push(AppRoutes.friendSearch),
             );

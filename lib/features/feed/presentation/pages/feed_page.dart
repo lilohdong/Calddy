@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1159,9 +1161,9 @@ class _NotificationPopover extends ConsumerWidget {
                               return TextButton(
                                 onPressed: hasUnread
                                     ? () async {
-                                        await ref
-                                            .read(markAllNotificationsReadProvider)
-                                            .call();
+                                        await ref.read(
+                                            notificationRepositoryProvider)
+                                            .markAllAsRead();
                                         ref.invalidate(notificationsProvider);
                                       }
                                     : null,
@@ -1251,24 +1253,21 @@ class _NotificationPopover extends ConsumerWidget {
                             itemBuilder: (_, i) => _NotifTile(
                               notif: notifs[i],
                               onTap: () async {
-                                // 읽음 처리
+                                // 이동할 경로를 async 전에 미리 캡처
+                                final route = _routeFor(notifs[i]);
+                                // 읽음 처리 (fire-and-forget, UI 블로킹 없음)
                                 if (!notifs[i].isRead) {
-                                  await ref
-                                      .read(
-                                          markNotificationReadUseCaseProvider)
+                                  unawaited(ref
+                                      .read(markNotificationReadUseCaseProvider)
                                       .call(MarkNotificationReadParams(
-                                          notificationId: notifs[i].id));
-                                  ref.invalidate(notificationsProvider);
+                                          notificationId: notifs[i].id))
+                                      .then((_) => ref.invalidate(
+                                          notificationsProvider)));
                                 }
-                                // 팝오버 닫기
+                                // 팝오버 닫기 + 페이지 이동 (동기적으로 연속 실행)
                                 if (context.mounted) {
                                   Navigator.of(context).pop();
-                                }
-                                // 페이지 이동
-                                final route =
-                                    _routeFor(notifs[i]);
-                                if (route != null && context.mounted) {
-                                  context.push(route);
+                                  if (route != null) context.push(route);
                                 }
                               },
                             ),
