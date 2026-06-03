@@ -53,6 +53,13 @@ final deleteAllNotificationsUseCaseProvider =
       ref.watch(notificationRepositoryProvider));
 });
 
+/// 전체 읽음 처리 — repository 직접 호출
+///
+/// 사용: await ref.read(markAllNotificationsReadProvider);
+final markAllNotificationsReadProvider = FutureProvider.autoDispose<void>((ref) {
+  return ref.read(notificationRepositoryProvider).markAllAsRead();
+});
+
 // ── State Providers ───────────────────────────────────────────────────────────
 
 /// 알림 목록 조회

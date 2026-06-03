@@ -52,6 +52,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
   String _color = '#7C6AFA';
   bool _isLoading = false;
   bool _isDday = false;
+  EventVisibility _visibility = EventVisibility.public;
 
   // 알림
   _AlarmMode _alarmMode = _AlarmMode.sameDay9am;
@@ -156,7 +157,7 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
             : _memoCtrl.text.trim(),
         notifyBeforeMin: _computeNotifyBeforeMin(),
         status: EventStatus.pending,
-        visibility: EventVisibility.public,
+        visibility: _visibility,
         createdAt: now,
         recurrenceType: _recurrenceType,
         recurrenceDays: recurrenceDays,
@@ -580,6 +581,47 @@ class _EventCreatePageState extends ConsumerState<EventCreatePage> {
                   Switch(
                     value: _isDday,
                     onChanged: (v) => setState(() => _isDday = v),
+                    activeThumbColor: Colors.white,
+                    activeTrackColor: const Color(0xFF7C6AFA),
+                    inactiveThumbColor: Colors.white,
+                    inactiveTrackColor: Colors.grey.shade300,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // 공개 범위
+            _SettingCard(
+              icon: _visibility == EventVisibility.public
+                  ? Icons.lock_open_outlined
+                  : Icons.lock_outlined,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _visibility == EventVisibility.public ? '공개' : '비공개',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      Text(
+                        _visibility == EventVisibility.public
+                            ? '친구 캘린더에 표시됩니다'
+                            : '나만 볼 수 있습니다',
+                        style: TextStyle(
+                            fontSize: 11, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                  Switch(
+                    value: _visibility == EventVisibility.public,
+                    onChanged: (v) => setState(() {
+                      _visibility = v
+                          ? EventVisibility.public
+                          : EventVisibility.private;
+                    }),
                     activeThumbColor: Colors.white,
                     activeTrackColor: const Color(0xFF7C6AFA),
                     inactiveThumbColor: Colors.white,

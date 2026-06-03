@@ -133,11 +133,16 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
           child: Text(e is FriendFailure ? e.message : '불러오기 실패'),
         ),
         data: (friends) {
-          if (friends.isEmpty) {
+          final requests = requestsAsync.valueOrNull ?? [];
+          final requestsLoading = requestsAsync.isLoading;
+
+          // 친구도 없고 요청도 없고 로딩도 아닐 때만 빈 화면
+          if (friends.isEmpty && requests.isEmpty && !requestsLoading) {
             return _EmptyState(
               onAdd: () => context.push(AppRoutes.friendSearch),
             );
           }
+
           return RefreshIndicator(
             onRefresh: () async {
               ref
@@ -146,24 +151,22 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             },
             child: CustomScrollView(
               slivers: [
-                // 상단 가로 스크롤 아바타
-                SliverToBoxAdapter(
-                  child: _AvatarScrollSection(friends: friends),
-                ),
-
-                // 친구 요청 카드
-                SliverToBoxAdapter(
-                  child: requestsAsync.maybeWhen(
-                    data: (requests) => requests.isEmpty
-                        ? const SizedBox()
-                        : FriendRequestCard(
-                            requests: requests,
-                            loadingIds: _loadingIds,
-                            onAccept: _acceptRequest,
-                            onReject: _rejectRequest,
-                          ),
-                    orElse: () => const SizedBox(),
+                // 상단 가로 스크롤 아바타 (친구 있을 때만)
+                if (friends.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _AvatarScrollSection(friends: friends),
                   ),
+
+                // 친구 요청 카드 (친구 유무 관계없이 항상 표시)
+                SliverToBoxAdapter(
+                  child: requests.isEmpty
+                      ? const SizedBox()
+                      : FriendRequestCard(
+                          requests: requests,
+                          loadingIds: _loadingIds,
+                          onAccept: _acceptRequest,
+                          onReject: _rejectRequest,
+                        ),
                 ),
 
                 // 친구 카드 목록
@@ -174,7 +177,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                       return FriendCard(
                         friend: f,
                         isExpanded: _expandedFriendId == f.friendId,
-                        rank: i, // 0=1위, 1=2위, 2=3위, 3이상=멘트 없음
+                        rank: i,
                         onToggle: () => setState(() {
                           _expandedFriendId =
                               _expandedFriendId == f.friendId
@@ -187,6 +190,47 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                     childCount: friends.length,
                   ),
                 ),
+
+                // 친구 없고 요청만 있을 때: 하단 안내 문구
+                if (friends.isEmpty && requests.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Column(
+                        children: [
+                          Icon(Icons.people_alt_outlined,
+                              size: 48, color: Colors.grey.shade300),
+                          const SizedBox(height: 12),
+                          Text(
+                            '아직 친구가 없어요',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade400),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '위 요청을 수락하거나 직접 친구를 추가해보세요',
+                            style: TextStyle(
+                                fontSize: 13, color: Colors.grey.shade400),
+                          ),
+                          const SizedBox(height: 20),
+                          TextButton.icon(
+                            onPressed: () =>
+                                context.push(AppRoutes.friendSearch),
+                            icon: const Icon(Icons.person_add_outlined,
+                                size: 18, color: Color(0xFF7C6AFA)),
+                            label: const Text(
+                              '친구 추가하기',
+                              style: TextStyle(
+                                  color: Color(0xFF7C6AFA),
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
