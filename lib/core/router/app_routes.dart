@@ -34,10 +34,12 @@ abstract class AppRoutes {
   static const String postDetail       = '/feed/post/:postId';
   static const String postCreate       = '/feed/post/create';
   static const String postEdit         = '/feed/post/:postId/edit';
+  static const String postReport       = '/feed/post/:postId/report';
 
   /// 런타임 경로 헬퍼 — :param 치환 (하드코딩 금지)
   static String postDetailPath(String postId) => '/feed/post/$postId';
   static String postEditPath(String postId)   => '/feed/post/$postId/edit';
+  static String postReportPath(String postId) => '/feed/post/$postId/report';
 
   // ── Friend ──────────────────────────────────────────────────
   static const String friendSearch     = '/friends/search';

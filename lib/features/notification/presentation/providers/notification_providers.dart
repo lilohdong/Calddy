@@ -10,6 +10,7 @@ import '../../domain/repositories/notification_repository.dart';
 import '../../domain/usecases/delete_all_notifications_use_case.dart';
 import '../../domain/usecases/delete_notification_use_case.dart';
 import '../../domain/usecases/get_notifications_use_case.dart';
+import '../../domain/usecases/mark_all_notifications_read_use_case.dart';
 import '../../domain/usecases/mark_notification_read_use_case.dart';
 
 // ── DataSource ────────────────────────────────────────────────────────────────
@@ -53,11 +54,10 @@ final deleteAllNotificationsUseCaseProvider =
       ref.watch(notificationRepositoryProvider));
 });
 
-/// 전체 읽음 처리 — repository 직접 호출
-///
-/// 사용: await ref.read(markAllNotificationsReadProvider);
-final markAllNotificationsReadProvider = FutureProvider.autoDispose<void>((ref) {
-  return ref.read(notificationRepositoryProvider).markAllAsRead();
+final markAllNotificationsReadUseCaseProvider =
+    Provider<MarkAllNotificationsReadUseCase>((ref) {
+  return MarkAllNotificationsReadUseCase(
+      ref.watch(notificationRepositoryProvider));
 });
 
 // ── State Providers ───────────────────────────────────────────────────────────

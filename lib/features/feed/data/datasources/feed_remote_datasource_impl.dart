@@ -172,7 +172,7 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
   Future<List<CommentModel>> getComments(String postId) async {
     final results = await _supabase
         .from(SupabaseConstants.comments)
-        .select('id, post_id, user_id, content, created_at')
+        .select('id, post_id, user_id, content, created_at, profiles!comments_user_id_fkey(nickname)')
         .eq('post_id', postId)
         .order('created_at');
 
@@ -256,7 +256,7 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
 
     final results = await _supabase
         .from(SupabaseConstants.postLikes)
-        .select('user_id, profiles!posts_user_id_fkey(nickname, avatar_url)')
+        .select('user_id, profiles!post_likes_user_id_fkey(nickname, avatar_url)')
         .eq('post_id', postId)
         .order('created_at');
 

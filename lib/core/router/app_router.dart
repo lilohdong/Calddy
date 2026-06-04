@@ -21,6 +21,7 @@ import '../../features/map/presentation/pages/ai_midpoint_page.dart';
 import '../../features/feed/presentation/pages/feed_page.dart';
 import '../../features/feed/presentation/pages/post_detail_page.dart';
 import '../../features/feed/presentation/pages/post_edit_page.dart';
+import '../../features/report/presentation/pages/report_post_page.dart';
 import '../../features/feed/domain/entities/post_entity.dart';
 import '../../features/friend/presentation/pages/friend_calendar_page.dart';
 import '../../features/friend/presentation/pages/friend_search_page.dart';
@@ -218,6 +219,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'edit',
                     builder: (_, s) => PostEditPage(
                       post: s.extra as PostEntity,
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'report',
+                    builder: (_, s) => ReportPostPage(
+                      postId: s.pathParameters['postId']!,
                     ),
                   ),
                 ],

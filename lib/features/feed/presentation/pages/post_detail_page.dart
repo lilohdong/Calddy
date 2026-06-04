@@ -36,12 +36,20 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   // 게시물 좋아요 상태 (extra로 받은 값에서 시작, 낙관적 업데이트)
   late bool _liked;
   late int _likeCount;
+  // 알림 진입(widget.post == null)일 때 fetch 완료 후 1회만 동기화
+  bool _likeInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _liked = widget.post?.isLikedByMe ?? false;
-    _likeCount = widget.post?.likesCount ?? 0;
+    if (widget.post != null) {
+      _liked = widget.post!.isLikedByMe;
+      _likeCount = widget.post!.likesCount;
+      _likeInitialized = true;
+    } else {
+      _liked = false;
+      _likeCount = 0;
+    }
   }
 
   @override
@@ -140,6 +148,24 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final postAsync = widget.post != null
         ? null
         : ref.watch(postByIdProvider(widget.postId));
+
+    // 알림 진입(widget.post == null) 시: fetch 완료되면 좋아요 상태를 1회 동기화
+    // ref.listen은 항상 무조건 호출해야 함 (Riverpod 규칙)
+    // _likeInitialized 플래그로 1회만 반영 (widget.post != null이면 이미 true라 no-op)
+    ref.listen<AsyncValue<PostEntity>>(
+      postByIdProvider(widget.postId),
+      (_, next) {
+        next.whenData((fetchedPost) {
+          if (!_likeInitialized && mounted) {
+            setState(() {
+              _liked = fetchedPost.isLikedByMe;
+              _likeCount = fetchedPost.likesCount;
+              _likeInitialized = true;
+            });
+          }
+        });
+      },
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F8),
@@ -350,9 +376,7 @@ class _PostHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        p.userId.length > 8
-                            ? p.userId.substring(0, 8)
-                            : p.userId,
+                        p.authorNickname ?? '알 수 없음',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
@@ -511,9 +535,7 @@ class _CommentCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        comment.userId.length > 8
-                            ? comment.userId.substring(0, 8)
-                            : comment.userId,
+                        comment.authorNickname ?? '알 수 없음',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
