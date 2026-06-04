@@ -124,6 +124,54 @@ class FeedNotifier
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => _fetch(arg));
   }
+
+  /// 좋아요 낙관적 업데이트 — DB 호출 없이 해당 포스트 상태만 즉시 반영
+  void optimisticToggleLike(String postId, bool currentlyLiked) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    state = AsyncData(current.map((p) {
+      if (p.id != postId) return p;
+      return PostEntity(
+        id: p.id,
+        userId: p.userId,
+        authorNickname: p.authorNickname,
+        authorAvatarUrl: p.authorAvatarUrl,
+        eventId: p.eventId,
+        content: p.content,
+        imageUrl: p.imageUrl,
+        visibility: p.visibility,
+        likesCount: currentlyLiked
+            ? (p.likesCount - 1).clamp(0, 999999)
+            : p.likesCount + 1,
+        isLikedByMe: !currentlyLiked,
+        feedDate: p.feedDate,
+        createdAt: p.createdAt,
+      );
+    }).toList());
+  }
+
+  /// 좋아요 실패 시 원래 상태로 복원
+  void revertToggleLike(String postId, bool originalLiked, int originalCount) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    state = AsyncData(current.map((p) {
+      if (p.id != postId) return p;
+      return PostEntity(
+        id: p.id,
+        userId: p.userId,
+        authorNickname: p.authorNickname,
+        authorAvatarUrl: p.authorAvatarUrl,
+        eventId: p.eventId,
+        content: p.content,
+        imageUrl: p.imageUrl,
+        visibility: p.visibility,
+        likesCount: originalCount,
+        isLikedByMe: originalLiked,
+        feedDate: p.feedDate,
+        createdAt: p.createdAt,
+      );
+    }).toList());
+  }
 }
 
 final feedByDateProvider = AsyncNotifierProvider.autoDispose

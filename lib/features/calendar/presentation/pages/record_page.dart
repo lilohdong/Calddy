@@ -8,6 +8,9 @@ import 'package:image_picker/image_picker.dart';
 import '../../../feed/domain/entities/post_entity.dart';
 import '../../../feed/domain/usecases/create_post_usecase.dart';
 import '../../../feed/presentation/providers/feed_providers.dart';
+import '../../domain/entities/event_entity.dart';
+import '../providers/calendar_providers.dart';
+import '../widgets/color_picker_row.dart';
 
 class RecordPage extends ConsumerStatefulWidget {
   const RecordPage({super.key, required this.eventId, this.isEditing = false});
@@ -124,27 +127,46 @@ class _RecordPageState extends ConsumerState<RecordPage> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         children: [
-          // 이벤트 이름 헤더
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF7C6AFA),
-                  shape: BoxShape.circle,
+          // 이벤트 이름 헤더 — calendarDataProvider에서 제목·색상 조회
+          Builder(builder: (context) {
+            final calendarAsync = ref.watch(calendarDataProvider);
+            final calData = calendarAsync.valueOrNull;
+            final event = calData == null
+                ? null
+                : [...calData.events, ...calData.ranges]
+                    .where((e) => e.id == widget.eventId)
+                    .firstOrNull;
+            final title = event?.title ?? '기록하기';
+            final isRange = event?.eventType == EventType.range;
+            final dotColor = event != null
+                ? ColorPickerRow.fromHex(event.color)
+                : const Color(0xFF7C6AFA);
+
+            return Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '일정 · ${widget.eventId}',
-                style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF7C6AFA),
-                    fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${isRange ? '구간' : '일정'} · $title',
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: dotColor,
+                        fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            );
+          }),
           const SizedBox(height: 16),
 
           // 본문 입력
