@@ -6,6 +6,8 @@ class InviteEntity {
   final String inviteeId;
   final InviteStatus status;
   final DateTime updatedAt;
+  final String? inviteeNickname;
+  final String? inviteeAvatarUrl;
 
   const InviteEntity({
     required this.id,
@@ -13,5 +15,7 @@ class InviteEntity {
     required this.inviteeId,
     required this.status,
     required this.updatedAt,
+    this.inviteeNickname,
+    this.inviteeAvatarUrl,
   });
 }
