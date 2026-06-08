@@ -1,14 +1,16 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../../../core/providers/global_providers.dart';
 import '../../domain/entities/drawing_entity.dart';
 import '../../domain/usecases/save_drawing_usecase.dart';
+import '../../domain/usecases/upload_drawing_thumbnail_usecase.dart';
 import '../providers/calendar_providers.dart';
 import '../widgets/color_picker_row.dart';
 import '../widgets/sticker_grid_widget.dart';
@@ -59,9 +61,9 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
     _date = DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
   }
 
-  // 썸네일 캡처 → Storage 업로드 → 공개 URL 반환
-  // 실패 시 throw (호출자가 에러 처리)
-  Future<String> _captureAndUploadThumbnail(String userId) async {
+  // 캔버스 → PNG 바이트 캡처 (Storage 업로드는 UseCase에서 처리)
+  // ⚠️ setState 전에 호출해야 함 (_canvasKey.currentContext stale 방지)
+  Future<Uint8List> _captureThumbnailBytes() async {
     final ctx = _canvasKey.currentContext;
     if (ctx == null) throw Exception('캔버스 컨텍스트를 찾을 수 없습니다.');
 
@@ -72,39 +74,33 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     if (byteData == null) throw Exception('이미지 데이터 변환에 실패했습니다.');
 
-    final bytes = byteData.buffer.asUint8List();
-    final fileName = 'drawing_${userId}_${widget.date}.png';
-
-    await Supabase.instance.client.storage
-        .from('drawings')
-        .uploadBinary(
-          fileName,
-          bytes,
-          fileOptions: const FileOptions(
-            contentType: 'image/png',
-            upsert: true,
-          ),
-        );
-
-    // 캐시 버스팅 타임스탬프 포함해서 반환 (NetworkImage 구버전 캐시 우회)
-    final publicUrl = Supabase.instance.client.storage
-        .from('drawings')
-        .getPublicUrl(fileName);
-    return '$publicUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+    return byteData.buffer.asUint8List();
   }
 
   Future<void> _save() async {
-    // ⚠️ 썸네일 캡처는 setState 전에 실행해야 함
-    // setState → rebuild 예약 → _canvasKey.currentContext stale 위험
-    final currentUserId =
-        Supabase.instance.client.auth.currentUser?.id ?? '';
+    // 세션 확인 — 빈 문자열 폴백 대신 즉시 에러 표시
+    final userId = ref.read(supabaseClientProvider).auth.currentUser?.id;
+    if (userId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('로그인 세션이 만료됐습니다. 다시 로그인해주세요.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
 
+    // 썸네일 캡처 + 업로드 (setState 전)
     String? thumbnailUrl;
     try {
-      thumbnailUrl = await _captureAndUploadThumbnail(currentUserId);
+      final bytes = await _captureThumbnailBytes();
+      thumbnailUrl = await ref
+          .read(uploadDrawingThumbnailUseCaseProvider)
+          .call(UploadDrawingThumbnailParams(bytes: bytes, date: widget.date));
     } catch (e) {
       // 썸네일 실패는 비치명적 — 드로잉 데이터는 정상 저장됨
-      // (버킷 미생성·네트워크 오류 등 인프라 문제일 경우 조용히 넘김)
       debugPrint('[Drawing] 썸네일 업로드 실패 (무시): $e');
     }
 
@@ -116,7 +112,7 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
         SaveDrawingParams(
           drawing: DrawingEntity(
             id: '',
-            userId: currentUserId,
+            userId: userId,
             drawDate: _date,
             strokes: _strokes,
             thumbnailUrl: thumbnailUrl,
@@ -138,13 +134,9 @@ class _DrawingPageState extends ConsumerState<DrawingPage> {
         );
       }
     } catch (e) {
-      // catch (_) 대신 catch (e) 로 실제 에러 메시지 표시
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('저장 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('저장 실패: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {

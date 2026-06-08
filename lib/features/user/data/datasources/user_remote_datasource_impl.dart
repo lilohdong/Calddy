@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/supabase_constants.dart';
+import '../../../../core/utils/extensions.dart';
 import '../models/profile_model.dart';
 import 'user_remote_datasource.dart';
 
@@ -95,12 +97,13 @@ class UserRemoteDataSourceImpl implements UserRemoteDataSource {
       }
     } catch (_) {}
 
+    final mimeType = extension.toMimeType;
     await _client.storage
         .from(SupabaseConstants.avatarsBucket)
         .upload(
           newStoragePath,
           file,
-          fileOptions: const FileOptions(upsert: true),
+          fileOptions: FileOptions(upsert: true, contentType: mimeType),
         );
 
     final publicUrl = _client.storage
@@ -119,7 +122,10 @@ class UserRemoteDataSourceImpl implements UserRemoteDataSource {
     if (url == null) return null;
     const marker = '/avatars/';
     final idx = url.indexOf(marker);
-    if (idx < 0) return null;
+    if (idx < 0) {
+      debugPrint('[Avatar] avatar_url에서 스토리지 경로 추출 실패: $url');
+      return null;
+    }
     return url.substring(idx + marker.length);
   }
 

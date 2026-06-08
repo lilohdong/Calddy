@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/supabase_constants.dart';
+import '../../../../core/utils/extensions.dart';
 import '../models/comment_model.dart';
 import '../models/post_liker_model.dart';
 import '../models/post_model.dart';
@@ -104,9 +105,14 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
     if (imageBytes != null && imageExtension != null) {
       final path =
           '$userId/${DateTime.now().millisecondsSinceEpoch}.$imageExtension';
+      final mimeType = imageExtension.toMimeType;
       await _supabase.storage
           .from(SupabaseConstants.postsBucket)
-          .uploadBinary(path, Uint8List.fromList(imageBytes));
+          .uploadBinary(
+            path,
+            Uint8List.fromList(imageBytes),
+            fileOptions: FileOptions(contentType: mimeType),
+          );
       imageUrl = _supabase.storage
           .from(SupabaseConstants.postsBucket)
           .getPublicUrl(path);
@@ -287,4 +293,5 @@ class FeedRemoteDataSourceImpl implements FeedRemoteDataSource {
       '${date.year.toString().padLeft(4, '0')}-'
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
+
 }

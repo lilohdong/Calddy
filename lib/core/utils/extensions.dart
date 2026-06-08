@@ -20,6 +20,16 @@ extension StringExtensions on String {
   /// null-safe 첫 글자 대문자
   String get capitalize =>
       isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
+
+  /// 파일 확장자 → MIME 타입 변환 (Storage 업로드 contentType용)
+  /// jpg/jpeg → image/jpeg, png → image/png, webp → image/webp, 그 외 → image/jpeg
+  String get toMimeType {
+    final ext = toLowerCase();
+    if (ext == 'jpg' || ext == 'jpeg') return 'image/jpeg';
+    if (ext == 'png') return 'image/png';
+    if (ext == 'webp') return 'image/webp';
+    return 'image/jpeg';
+  }
 }
 
 extension BuildContextExtensions on BuildContext {

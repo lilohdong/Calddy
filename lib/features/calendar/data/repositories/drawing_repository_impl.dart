@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/error/failures.dart';
@@ -20,6 +22,10 @@ class DrawingRepositoryImpl implements DrawingRepository {
   Future<DrawingEntity?> getDrawingByDate(DateTime date) =>
       _guard(() => _dataSource.getDrawingByDate(date));
 
+  @override
+  Future<String> uploadThumbnail(Uint8List bytes, String date) =>
+      _guard(() => _dataSource.uploadThumbnail(bytes, date));
+
   Future<T> _guard<T>(Future<T> Function() fn) async {
     try {
       return await fn();
@@ -27,6 +33,8 @@ class DrawingRepositoryImpl implements DrawingRepository {
       throw const DrawingSessionExpiredFailure();
     } on PostgrestException catch (e) {
       throw DrawingDatabaseFailure(e.message);
+    } on StorageException catch (e) {
+      throw DrawingStorageFailure(e.message);
     } on DrawingFailure {
       rethrow;
     } catch (_) {

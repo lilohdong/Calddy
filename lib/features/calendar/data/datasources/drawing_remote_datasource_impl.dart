@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:calddy/core/constants/supabase_constants.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -37,6 +39,24 @@ class DrawingRemoteDataSourceImpl implements DrawingRemoteDataSource {
         .maybeSingle();
 
     return row == null ? null : DrawingModel.fromJson(row);
+  }
+
+  @override
+  Future<String> uploadThumbnail(Uint8List bytes, String date) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw const AuthException('session_expired');
+
+    final fileName = 'drawing_${userId}_$date.png';
+    await _client.storage
+        .from(SupabaseConstants.drawingsBucket)
+        .uploadBinary(
+          fileName,
+          bytes,
+          fileOptions: const FileOptions(contentType: 'image/png', upsert: true),
+        );
+    return _client.storage
+        .from(SupabaseConstants.drawingsBucket)
+        .getPublicUrl(fileName);
   }
 
   @override

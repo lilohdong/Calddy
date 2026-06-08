@@ -16,6 +16,7 @@ import 'package:calddy/features/calendar/domain/usecases/get_calendar_by_month_u
 import 'package:calddy/features/calendar/domain/usecases/get_calendar_by_week_usecase.dart';
 import 'package:calddy/features/calendar/domain/usecases/get_drawing_usecase.dart';
 import 'package:calddy/features/calendar/domain/usecases/save_drawing_usecase.dart';
+import 'package:calddy/features/calendar/domain/usecases/upload_drawing_thumbnail_usecase.dart';
 import 'package:calddy/features/calendar/domain/usecases/update_event_usecase.dart';
 import 'package:calddy/features/calendar/domain/usecases/update_recurring_event_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,6 +89,9 @@ final saveDrawingUseCaseProvider = Provider((ref) =>
 
 final getDrawingUseCaseProvider = Provider((ref) =>
     GetDrawingUseCase(ref.watch(drawingRepositoryProvider)));
+
+final uploadDrawingThumbnailUseCaseProvider = Provider((ref) =>
+    UploadDrawingThumbnailUseCase(ref.watch(drawingRepositoryProvider)));
 
 // 4. 선택된 날짜의 드로잉 조회
 final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
