@@ -81,13 +81,27 @@ class _AppointmentDetailPageState
                   children: [
                     _InfoRow(
                       icon: Icons.event,
-                      label: '일정 ID',
-                      value: appointment.eventId,
+                      label: '일정',
+                      value: appointment.eventTitle ?? '제목 없음',
                     ),
-                    if (appointment.suggestedPlace != null)
+                    if (appointment.eventStartAt != null)
+                      _InfoRow(
+                        icon: Icons.access_time_outlined,
+                        label: '일시',
+                        value: _fmtRange(
+                            appointment.eventStartAt!, appointment.eventEndAt),
+                      ),
+                    if (appointment.eventLocation != null &&
+                        appointment.eventLocation!.isNotEmpty)
                       _InfoRow(
                         icon: Icons.location_on_outlined,
-                        label: '추천 장소',
+                        label: '장소',
+                        value: appointment.eventLocation!,
+                      ),
+                    if (appointment.suggestedPlace != null)
+                      _InfoRow(
+                        icon: Icons.stars_outlined,
+                        label: 'AI 추천 장소',
                         value: appointment.suggestedPlace!,
                       ),
                   ],
@@ -144,6 +158,13 @@ class _AppointmentDetailPageState
       ),
     );
   }
+}
+
+String _fmtRange(DateTime start, DateTime? end) {
+  String fmt(DateTime dt) =>
+      '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  if (end == null) return fmt(start);
+  return '${fmt(start)} ~ ${fmt(end)}';
 }
 
 class _SectionCard extends StatelessWidget {
@@ -225,21 +246,39 @@ class _InviteTile extends StatelessWidget {
         statusColor = Colors.grey;
         statusText = '취소';
     }
+
+    final nickname = (invite.inviteeNickname?.isNotEmpty == true)
+        ? invite.inviteeNickname!
+        : '알 수 없음';
+    final avatarUrl = invite.inviteeAvatarUrl;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          const CircleAvatar(radius: 16, child: Icon(Icons.person, size: 16)),
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: const Color(0xFF7C6AFA).withValues(alpha: 0.15),
+            backgroundImage:
+                avatarUrl != null ? NetworkImage(avatarUrl) : null,
+            child: avatarUrl == null
+                ? Text(
+                    nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF7C6AFA),
+                        fontWeight: FontWeight.bold),
+                  )
+                : null,
+          ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(invite.inviteeId,
-                style: const TextStyle(fontSize: 14)),
+            child: Text(nickname, style: const TextStyle(fontSize: 14)),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
+              color: statusColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(statusText,

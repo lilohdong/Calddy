@@ -349,15 +349,26 @@ alter table public.appointment_invites enable row level security;
 
 
 -- ── appointment_invites 생성 후: appointments SELECT 정책 ────
+-- NOTE: security definer 헬퍼 함수로 교차 RLS 재귀 방지
+--       (appointments ↔ appointment_invites 서로 참조 시 무한 재귀 발생)
+
+create or replace function public.is_appointment_invitee(appt_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.appointment_invites
+    where appointment_id = appt_id
+      and invitee_id = auth.uid()
+  );
+$$;
 
 create policy "약속 조회: creator 또는 초대받은 사람"
   on public.appointments for select using (
     auth.uid() = creator_id
-    or exists (
-      select 1 from public.appointment_invites
-      where appointment_id = appointments.id
-        and invitee_id = auth.uid()
-    )
+    or public.is_appointment_invitee(id)
   );
 
 

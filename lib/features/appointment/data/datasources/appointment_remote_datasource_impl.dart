@@ -62,7 +62,7 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
     _uid; // 세션 확인
     final row = await _client
         .from(SupabaseConstants.appointments)
-        .select('*, appointment_invites(*)')
+        .select('*, events!appointments_event_id_fkey(title, start_at, end_at, location), appointment_invites(*, profiles!appointment_invites_invitee_id_fkey(nickname, avatar_url))')
         .eq('id', appointmentId)
         .single();
     return AppointmentModel.fromJson(row);

@@ -9,10 +9,15 @@ class AppointmentModel extends AppointmentEntity {
     super.suggestedPlace,
     super.invites,
     required super.createdAt,
+    super.eventTitle,
+    super.eventStartAt,
+    super.eventEndAt,
+    super.eventLocation,
   });
 
   factory AppointmentModel.fromJson(Map<String, dynamic> json) {
     final rawInvites = json['appointment_invites'] as List<dynamic>?;
+    final event = json['events'] as Map<String, dynamic>?;
     return AppointmentModel(
       id: json['id'] as String,
       eventId: json['event_id'] as String,
@@ -23,6 +28,14 @@ class AppointmentModel extends AppointmentEntity {
               .toList() ??
           const [],
       createdAt: DateTime.parse(json['created_at'] as String),
+      eventTitle: event?['title'] as String?,
+      eventStartAt: event?['start_at'] != null
+          ? DateTime.parse(event!['start_at'] as String)
+          : null,
+      eventEndAt: event?['end_at'] != null
+          ? DateTime.parse(event!['end_at'] as String)
+          : null,
+      eventLocation: event?['location'] as String?,
     );
   }
 
@@ -33,6 +46,10 @@ class AppointmentModel extends AppointmentEntity {
         suggestedPlace: e.suggestedPlace,
         invites: e.invites,
         createdAt: e.createdAt,
+        eventTitle: e.eventTitle,
+        eventStartAt: e.eventStartAt,
+        eventEndAt: e.eventEndAt,
+        eventLocation: e.eventLocation,
       );
 
   // INSERT payload: id 제외 (DB auto-generate), invites 제외
